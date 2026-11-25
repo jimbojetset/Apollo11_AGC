@@ -2,11 +2,15 @@ using System.Security.Cryptography;
 using Apollo11.Agc.Dsky;
 using Apollo11.Agc.Hardware;
 
-if (args is ["--comanche-orbit", var ropePath])
-    return ComancheOrbitCheck.Run(ropePath);
-
-var tests = new (string Name, Action Run)[]
+internal static class Program
 {
+    public static int Main(string[] args)
+    {
+        if (args is ["--comanche-orbit", var ropePath])
+            return ComancheOrbitCheck.Run(ropePath);
+
+        var tests = new (string Name, Action Run)[]
+        {
     ("one's-complement end-around carry", OnesComplementEndAroundCarry),
     ("erasable and fixed bank selection", BankSelection),
     ("editing registers", EditingRegisters),
@@ -21,24 +25,25 @@ var tests = new (string Name, Action Run)[]
     ("DSKY display relays and flashing", DskyRelays),
     ("DSKY keypad and standby wiring", DskyKeypad),
     ("Luminary 099 DSKY lamp test", LuminaryLampTest)
-};
+        };
 
-var failed = 0;
-foreach (var test in tests)
-{
-    try
-    {
-        test.Run();
-        Console.WriteLine($"PASS  {test.Name}");
-    }
-    catch (Exception exception)
-    {
-        failed++;
-        Console.Error.WriteLine($"FAIL  {test.Name}: {exception.Message}");
-    }
-}
+        var failed = 0;
+        foreach (var test in tests)
+        {
+            try
+            {
+                test.Run();
+                Console.WriteLine($"PASS  {test.Name}");
+            }
+            catch (Exception exception)
+            {
+                failed++;
+                Console.Error.WriteLine($"FAIL  {test.Name}: {exception.Message}");
+            }
+        }
 
-return failed == 0 ? 0 : 1;
+        return failed == 0 ? 0 : 1;
+    }
 
 static void OnesComplementEndAroundCarry()
 {
@@ -320,6 +325,7 @@ static void True(bool condition, string message)
 {
     if (!condition)
         throw new InvalidOperationException(message);
+}
 }
 
 internal static class ComancheOrbitCheck
