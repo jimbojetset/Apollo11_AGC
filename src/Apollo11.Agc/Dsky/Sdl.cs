@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Apollo11.Agc.Dsky;
 
-internal static partial class Sdl
+internal static class Sdl
 {
     private const string Library = "SDL2";
 
@@ -69,71 +69,51 @@ internal static partial class Sdl
         [FieldOffset(24)] public int MouseY;
     }
 
-    public static string Error => Marshal.PtrToStringUTF8(SDL_GetError()) ?? "Unknown SDL error";
+    public static string Error => Marshal.PtrToStringUTF8(SDL_GetErrorNative()) ?? "Unknown SDL error";
 
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial int SDL_Init(uint flags);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial void SDL_Quit();
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    private static partial nint SDL_GetError();
-    [LibraryImport(Library, StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(System.Runtime.InteropServices.Marshalling.AnsiStringMarshaller))]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial nint SDL_CreateWindow(
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int SDL_Init(uint flags);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern void SDL_Quit();
+    [DllImport(Library, EntryPoint = "SDL_GetError", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    private static extern nint SDL_GetErrorNative();
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern nint SDL_CreateWindow(
         [MarshalAs(UnmanagedType.LPUTF8Str)] string title, int x, int y, int w, int h, uint flags);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial void SDL_DestroyWindow(nint window);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial nint SDL_CreateRenderer(nint window, int index, uint flags);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial void SDL_DestroyRenderer(nint renderer);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial int SDL_RenderSetLogicalSize(nint renderer, int w, int h);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial int SDL_SetRenderDrawColor(nint renderer, byte r, byte g, byte b, byte a);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial int SDL_RenderClear(nint renderer);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial int SDL_RenderFillRect(nint renderer, in Rect rect);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial int SDL_RenderGeometry(
-        nint renderer, nint texture, nint vertices, int vertexCount, nint indices, int indexCount);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial nint SDL_CreateTexture(nint renderer, uint format, int access, int w, int h);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial void SDL_DestroyTexture(nint texture);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial int SDL_SetRenderTarget(nint renderer, nint texture);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial int SDL_RenderSetScale(nint renderer, float scaleX, float scaleY);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial int SDL_SetTextureScaleMode(nint texture, int scaleMode);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial int SDL_RenderCopy(nint renderer, nint texture, nint source, nint destination);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial void SDL_RenderPresent(nint renderer);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial int SDL_PollEvent(out Event input);
-    [LibraryImport(Library)]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
-    public static partial void SDL_Delay(uint milliseconds);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern void SDL_DestroyWindow(nint window);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern nint SDL_CreateRenderer(nint window, int index, uint flags);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern void SDL_DestroyRenderer(nint renderer);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int SDL_RenderSetLogicalSize(nint renderer, int w, int h);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int SDL_SetRenderDrawColor(nint renderer, byte r, byte g, byte b, byte a);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int SDL_RenderClear(nint renderer);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int SDL_RenderFillRect(nint renderer, in Rect rect);
+    // SDL consumes the two contiguous buffers during this call.
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int SDL_RenderGeometry(
+        nint renderer, nint texture, in Vertex firstVertex, int vertexCount, in int firstIndex, int indexCount);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern nint SDL_CreateTexture(nint renderer, uint format, int access, int w, int h);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern void SDL_DestroyTexture(nint texture);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int SDL_SetRenderTarget(nint renderer, nint texture);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int SDL_RenderSetScale(nint renderer, float scaleX, float scaleY);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int SDL_SetTextureScaleMode(nint texture, int scaleMode);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int SDL_RenderCopy(nint renderer, nint texture, nint source, nint destination);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern void SDL_RenderPresent(nint renderer);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int SDL_PollEvent(out Event input);
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern void SDL_Delay(uint milliseconds);
 }

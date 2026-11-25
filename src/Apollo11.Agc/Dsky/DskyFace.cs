@@ -219,11 +219,11 @@ internal sealed partial class DskyFace(nint renderer)
         Polygon(points, x, y, color, color, 1);
     }
 
-    private unsafe void Polygon(ReadOnlySpan<Point> points, float x, float y, int top, int bottom,
+    private void Polygon(ReadOnlySpan<Point> points, float x, float y, int top, int bottom,
         float height, float skew = 0)
     {
-        var vertices = stackalloc Vertex[points.Length];
-        var indices = stackalloc int[(points.Length - 2) * 3];
+        Span<Vertex> vertices = stackalloc Vertex[points.Length];
+        Span<int> indices = stackalloc int[(points.Length - 2) * 3];
         for (var i = 0; i < points.Length; i++)
         {
             var point = points[i];
@@ -238,7 +238,7 @@ internal sealed partial class DskyFace(nint renderer)
             indices[i * 3 + 1] = i + 1;
             indices[i * 3 + 2] = i + 2;
         }
-        _ = SDL_RenderGeometry(renderer, 0, vertices, points.Length, indices, (points.Length - 2) * 3);
+        _ = SDL_RenderGeometry(renderer, 0, in vertices[0], vertices.Length, in indices[0], indices.Length);
     }
 
     private static byte Shade(int from, int to, float blend)
@@ -254,6 +254,6 @@ internal sealed partial class DskyFace(nint renderer)
 
     private void Color(int rgb)
     {
-        SDL_SetRenderDrawColor(renderer, (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, 255);
+        _ = SDL_SetRenderDrawColor(renderer, (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, 255);
     }
 }
