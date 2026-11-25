@@ -41,9 +41,18 @@ public sealed class AgcChannels
         Output?.Invoke(channel, value);
     }
 
-    public void SetInput(int channel, int value) => _channels[channel & 0x1ff] = (ushort)(value & AgcWord.WordMask);
+    public void SetInput(int channel, int value)
+    {
+        _channels[channel & 0x1ff] = (ushort)(value & AgcWord.WordMask);
+    }
 
-    public int Get(int channel) => _channels[channel & 0x1ff];
+    public int Get(int channel)
+    {
+        return _channels[channel & 0x1ff];
+    }
 
-    public int GetLatchedRelayRow(int row) => _relayRows[row & 0xf];
+    public int GetLatchedRelayRow(int row)
+    {
+        return _relayRows[row & 0xf];
+    }
 }

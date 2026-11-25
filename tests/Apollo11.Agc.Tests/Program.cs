@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Apollo11.Agc.Dsky;
 using Apollo11.Agc.Hardware;
 
 var tests = new (string Name, Action Run)[]
@@ -12,7 +13,10 @@ var tests = new (string Name, Action Run)[]
     ("DOWNRUPT timing", DownruptTiming),
     ("priority interrupt and RESUME", InterruptAndResume),
     ("timer scaler", TimerScaler),
-    ("Luminary 099 rope", LuminaryRope)
+    ("Luminary 099 rope", LuminaryRope),
+    ("DSKY display relays and flashing", DskyRelays),
+    ("DSKY keypad and standby wiring", DskyKeypad),
+    ("Luminary 099 DSKY lamp test", LuminaryLampTest)
 };
 
 var failed = 0;
@@ -79,9 +83,9 @@ static void BasicInstructions()
     Write(cpu, 0x091, 20);
     cpu.Memory[AgcMemory.Z] = 0x080;
 
-    cpu.Step();
-    cpu.Step();
-    cpu.Step();
+    _ = cpu.Step();
+    _ = cpu.Step();
+    _ = cpu.Step();
 
     Equal(30, cpu.Memory[0x092]);
     Equal(0x083, cpu.Z);
@@ -95,8 +99,8 @@ static void ExtracodeIo()
     cpu.Memory[AgcMemory.A] = AgcWord.SignExtend(0x1234);
     cpu.Memory[AgcMemory.Z] = 0x080;
 
-    cpu.Step();
-    cpu.Step();
+    _ = cpu.Step();
+    _ = cpu.Step();
 
     Equal(0x1234, cpu.Channels.Get(0x08));
     Equal(0x1234, cpu.Channels.GetLatchedRelayRow(2));
@@ -110,7 +114,7 @@ static void DoubleDouble()
     cpu.Memory[AgcMemory.L] = AgcWord.SignExtend(3);
     cpu.Memory[AgcMemory.Z] = 0x080;
 
-    cpu.Step();
+    _ = cpu.Step();
 
     Equal(4, cpu.A);
     Equal(6, cpu.L);
@@ -140,13 +144,13 @@ static void InterruptAndResume()
     cpu.Memory[AgcMemory.Z] = 0x080;
     cpu.RequestInterrupt(3);
 
-    cpu.Step();
+    _ = cpu.Step();
     Equal(0x80c, cpu.Z);
     Equal(0x081, cpu.Memory[AgcMemory.Zrupt]);
 
     Write(cpu, 0x80c, (0x28 << 9) | AgcMemory.Brupt); // RESUME
-    cpu.Step();
-    cpu.Step();
+    _ = cpu.Step();
+    _ = cpu.Step();
     Equal(0x321, AgcWord.OverflowCorrect(cpu.A));
     Equal(0x081, cpu.Z);
 }
@@ -174,7 +178,7 @@ static void LuminaryRope()
     True(!cpu.Memory.FixedParityFailure, "Luminary's first rope word failed odd parity.");
 
     for (var instruction = 0; instruction < 8; instruction++)
-        cpu.Step();
+        _ = cpu.Step();
     // This state is also produced by yaAGC at the DXCH RSBBQ boundary.
     Equal(0x5bb, cpu.Z);
     Equal(0, cpu.A);
@@ -187,6 +191,90 @@ static void LuminaryRope()
     cpu.Run(20_000);
     True(cpu.InstructionCount > 5_000, "Luminary did not execute enough instructions.");
     True(cpu.Z != 0x800, "Luminary remained at its reset vector.");
+}
+
+static void DskyRelays()
+{
+    var cpu = new AgcCpu();
+    var panel = new DskyPanel(cpu);
+    cpu.Channels.Write(0x08, (11 << 11) | (3 << 5) | 25, cpu.Memory);
+    cpu.Channels.Write(0x08, (10 << 11) | (27 << 5) | 15, cpu.Memory);
+    cpu.Channels.Write(0x08, (3 << 11) | (30 << 5) | 28, cpu.Memory);
+    cpu.Channels.Write(0x08, (7 << 11) | 0x400, cpu.Memory);
+    cpu.Channels.Write(0x08, (12 << 11) | 0x104, cpu.Memory);
+    cpu.Channels.Write(0x08, 0, cpu.Memory); // Clearing the drive lines leaves the relays latched.
+    cpu.Channels.Write(0x09, 0x62, cpu.Memory);
+
+    Equal('1', panel.Digit(0));
+    Equal('2', panel.Digit(1));
+    Equal(' ', panel.Digit(2));
+    Equal('5', panel.Digit(15));
+    Equal('6', panel.Digit(16));
+    Equal('+', panel.Sign(0));
+    Equal(DskyLamps.ComputerActivity | DskyLamps.Program | DskyLamps.Velocity | DskyLamps.Restart, panel.Lamps);
+
+    Write(cpu, 0x800, (0x0a << 9) | 0x800);
+    cpu.Run(28_000);
+    Equal('3', panel.Digit(2));
+    True(panel.Lamps.HasFlag(DskyLamps.OperatorError), "OPR ERR did not turn on in the visible flash phase.");
+}
+
+static void DskyKeypad()
+{
+    var cpu = new AgcCpu();
+    var panel = new DskyPanel(cpu);
+    cpu.Channels.SetInput(0x0d, 0x200);
+    panel.Press(DskyKey.Reset);
+    Equal(0x212, cpu.Channels.Get(0x0d));
+    True(!panel.Lamps.HasFlag(DskyLamps.Restart), "RSET did not clear the hardware RESTART latch.");
+    _ = cpu.Step();
+    Equal(5, cpu.LastInterrupt);
+
+    cpu.Reset();
+    Write(cpu, 0x800, (0x0a << 9) | 0x800);
+    cpu.Channels.Write(0x0b, 0x400, cpu.Memory); // Enable standby on channel 13.
+    panel.Press(DskyKey.Proceed);
+    Equal(0x5fff, cpu.Channels.Get(0x1a));
+    cpu.Run(165_000);
+    True(cpu.Standby && panel.Lamps.HasFlag(DskyLamps.Standby), "Long PRO did not enter standby.");
+    var instructionCount = cpu.InstructionCount;
+    cpu.Run(112_000);
+    Equal(instructionCount, cpu.InstructionCount);
+    panel.Release(DskyKey.Proceed);
+    Equal(0x7fff, cpu.Channels.Get(0x1a));
+    panel.Press(DskyKey.Proceed);
+    cpu.Run(110_000);
+    True(!cpu.Standby && cpu.InstructionCount > instructionCount, "A second long PRO did not wake the AGC.");
+}
+
+static void LuminaryLampTest()
+{
+    var cpu = new AgcCpu();
+    RopeImage.Load(Path.Combine(AppContext.BaseDirectory, "roms", "Luminary099.bin"), cpu.Memory);
+    var panel = new DskyPanel(cpu);
+    var relayWords = new List<int>();
+    cpu.Channels.Output += (channel, value) =>
+    {
+        if (channel == 0x08 && value != 0)
+            relayWords.Add(value);
+    };
+
+    foreach (var key in new[] { DskyKey.Verb, DskyKey.Three, DskyKey.Five, DskyKey.Enter })
+    {
+        cpu.Run(15_000);
+        panel.Press(key);
+    }
+    Equal(0x6100, relayWords[0]); // Virtual AGC's first nonzero display word is octal 60400.
+    cpu.Run(46_000);
+
+    Equal("60674 51675 45675 41675 37675 31675 27675 21675 15675 13675 05675 55675",
+        string.Join(' ', relayWords.TakeLast(12).Select(word => Convert.ToString(word, 8).PadLeft(5, '0'))));
+    Equal("888888888888888888888", string.Concat(Enumerable.Range(0, 21).Select(panel.Digit)));
+    Equal('+', panel.Sign(0));
+    Equal('+', panel.Sign(1));
+    Equal('+', panel.Sign(2));
+    True(panel.Lamps.HasFlag(DskyLamps.Standby | DskyLamps.Restart | DskyLamps.Altitude | DskyLamps.Velocity),
+        "Luminary's V35 lamp test did not light STBY, RESTART, ALT and VEL.");
 }
 
 static void Write(AgcCpu cpu, int address, int value)

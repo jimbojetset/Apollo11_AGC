@@ -77,17 +77,28 @@ public sealed class AgcMemory
 
         var bank = address < 0x100 ? 0 : address < 0x200 ? 1 : address < 0x300 ? 2 : SelectedErasableBank;
         var offset = address & 0xff;
-        value = Edit(offset, value);
-        _erasable[bank][offset] = (ushort)(value & (bank == 0 && offset < 0x10 ? AgcWord.RegisterMask : AgcWord.WordMask));
-        MirrorBankRegisters(offset);
+        // A, L and Q keep the upper sign bit. Only bank zero has editing registers.
+        if (bank == 0 && offset >= Zero)
+            value = Edit(offset, value & AgcWord.WordMask);
+        _erasable[bank][offset] = (ushort)(value & (bank == 0 && offset < 3 ? AgcWord.RegisterMask : AgcWord.WordMask));
+        if (bank == 0)
+            MirrorBankRegisters(offset);
     }
 
-    public int ReadErasable(int bank, int offset) => _erasable[bank][offset];
+    public int ReadErasable(int bank, int offset)
+    {
+        return _erasable[bank][offset];
+    }
 
-    public void WriteErasable(int bank, int offset, int value) =>
+    public void WriteErasable(int bank, int offset, int value)
+    {
         _erasable[bank][offset] = (ushort)(value & AgcWord.WordMask);
+    }
 
-    public int ReadFixed(int bank, int offset) => _fixed[bank][offset];
+    public int ReadFixed(int bank, int offset)
+    {
+        return _fixed[bank][offset];
+    }
 
     public void LoadFixedWord(int bank, int offset, int word, bool parity)
     {
@@ -95,7 +106,10 @@ public sealed class AgcMemory
         _fixedParity[bank][offset] = parity;
     }
 
-    public void ClearParityFailure() => FixedParityFailure = false;
+    public void ClearParityFailure()
+    {
+        FixedParityFailure = false;
+    }
 
     public int SelectedErasableBank => (_erasable[0][Eb] >> 8) & 0x7;
 
@@ -110,9 +124,8 @@ public sealed class AgcMemory
         }
     }
 
-    private int Edit(int offset, int value)
+    private static int Edit(int offset, int value)
     {
-        value &= AgcWord.WordMask;
         return offset switch
         {
             Zero => 0,
@@ -140,11 +153,15 @@ public sealed class AgcMemory
         }
     }
 
-    private static ushort[][] CreateBanks(int count, int size) =>
-        Enumerable.Range(0, count).Select(_ => new ushort[size]).ToArray();
+    private static ushort[][] CreateBanks(int count, int size)
+    {
+        return Enumerable.Range(0, count).Select(_ => new ushort[size]).ToArray();
+    }
 
-    private static bool[][] CreateParityBanks() =>
-        Enumerable.Range(0, FixedBankCount).Select(_ => new bool[FixedBankSize]).ToArray();
+    private static bool[][] CreateParityBanks()
+    {
+        return Enumerable.Range(0, FixedBankCount).Select(_ => new bool[FixedBankSize]).ToArray();
+    }
 
     private static bool HasOddParity(int value)
     {

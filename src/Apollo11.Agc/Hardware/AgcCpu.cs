@@ -27,6 +27,9 @@ public sealed class AgcCpu
     private bool _trap31A;
     private bool _trap31B;
     private bool _trap32;
+    private bool _standbyProSample;
+    private bool _standbyProConsumed;
+    private bool _standbyRestartPending;
 
     public AgcCpu(AgcMemory? memory = null, AgcChannels? channels = null)
     {
@@ -45,6 +48,8 @@ public sealed class AgcCpu
     public int LastInterrupt { get; private set; }
     public int LastProgramCounter { get; private set; }
     public int LastInstruction { get; private set; }
+    public bool RestartLight { get; private set; }
+    public bool Standby { get; private set; }
 
     public int A => Memory[AgcMemory.A];
     public int L => Memory[AgcMemory.L];
@@ -77,6 +82,11 @@ public sealed class AgcCpu
         _trap31A = false;
         _trap31B = false;
         _trap32 = false;
+        RestartLight = true;
+        Standby = false;
+        _standbyProSample = false;
+        _standbyProConsumed = false;
+        _standbyRestartPending = false;
     }
 
     public void RequestInterrupt(int priority)
@@ -86,10 +96,38 @@ public sealed class AgcCpu
         _interruptRequests[priority] = true;
     }
 
+    public void PressDskyKey(int code)
+    {
+        Channels.SetInput(0x0d, (Channels.Get(0x0d) & ~0x1f) | (code & 0x1f)); // Channel 15.
+        if (code == 18)
+            RestartLight = false; // RSET also clears the RESTART latch on a hardwired line.
+        RequestInterrupt(5);
+    }
+
+    public void SetDskyProceed(bool pressed)
+    {
+        const int proceedBit = 0x2000; // Channel 32 bit 14 is active low.
+        var input = Channels.Get(0x1a);
+        Channels.SetInput(0x1a, pressed ? input & ~proceedBit : input | proceedBit);
+        if (!pressed)
+        {
+            _standbyProSample = false;
+            _standbyProConsumed = false;
+        }
+    }
+
     public int Step()
     {
         var startingCycle = CycleCount;
         WaitForCpuCycle();
+
+        if (_standbyRestartPending)
+        {
+            _standbyRestartPending = false;
+            EnterStandbyRestart();
+        }
+        if (Standby)
+            return checked((int)(CycleCount - startingCycle));
 
         var programCounter = Z;
         var fetched = Memory.Read(programCounter);
@@ -115,6 +153,7 @@ public sealed class AgcCpu
             WaitForCpuCycle();
 
         _nextZ = (programCounter + 1) & 0xffff;
+        Memory[AgcMemory.Z] = _nextZ;
         _index = 0;
         _substituteInstruction = false;
         var keepExtraCode = false;
@@ -135,7 +174,7 @@ public sealed class AgcCpu
     {
         var target = CycleCount + machineCycles;
         while (CycleCount < target)
-            Step();
+            _ = Step();
     }
 
     private void Execute(int opcode, int instruction, ref bool keepExtraCode)
@@ -349,8 +388,10 @@ public sealed class AgcCpu
         }
     }
 
-    private bool CanTakeInterrupt(int instruction, bool overflow) =>
-        !InInterrupt && InterruptsEnabled && !ExtraCode && !overflow && instruction is not 3 and not 4 and not 6;
+    private bool CanTakeInterrupt(int instruction, bool overflow)
+    {
+        return !InInterrupt && InterruptsEnabled && !ExtraCode && !overflow && instruction is not 3 and not 4 and not 6;
+    }
 
     private bool TakeInterrupt(int programCounter, int instruction, int opcode)
     {
@@ -378,7 +419,10 @@ public sealed class AgcCpu
         return true;
     }
 
-    private int ReadOperand(int address) => Memory.Read(address);
+    private int ReadOperand(int address)
+    {
+        return Memory.Read(address);
+    }
 
     private int ReadOperandAndEdit(int address)
     {
@@ -388,13 +432,17 @@ public sealed class AgcCpu
         return value;
     }
 
-    private int SignExtendedOperand(int address) =>
-        address < 3 ? ReadOperand(address) : AgcWord.SignExtend(ReadOperandAndEdit(address));
+    private int SignExtendedOperand(int address)
+    {
+        return address < 3 ? ReadOperand(address) : AgcWord.SignExtend(ReadOperandAndEdit(address));
+    }
 
-    private int SignExtendedComplement(int address) =>
-        address < 3
+    private int SignExtendedComplement(int address)
+    {
+        return address < 3
             ? ~ReadOperand(address) & AgcWord.RegisterMask
             : AgcWord.SignExtend(AgcWord.Negate(ReadOperandAndEdit(address)));
+    }
 
     private void WriteOperand(int address, int value)
     {
@@ -605,7 +653,7 @@ public sealed class AgcCpu
         if (AgcWord.Overflow(sum) == 0)
             return;
         if (address == AgcMemory.Time1)
-            IncrementCounter(AgcMemory.Time2, 0);
+            _ = IncrementCounter(AgcMemory.Time2, 0);
         else if (address == AgcMemory.Time5)
             RequestInterrupt(2);
         else if (address == AgcMemory.Time3)
@@ -647,13 +695,17 @@ public sealed class AgcCpu
                 scaler1 = 0;
             }
 
+            UpdateStandby(scaler1);
+            if (Standby)
+                continue;
+
             if ((scaler1 & 0x1f) == 0x10)
             {
                 counterOperations += 2;
                 if (IncrementCounter(AgcMemory.Time1, 0))
                 {
                     counterOperations++;
-                    IncrementCounter(AgcMemory.Time2, 0);
+                    _ = IncrementCounter(AgcMemory.Time2, 0);
                 }
                 if (IncrementCounter(AgcMemory.Time3, 0))
                     RequestInterrupt(3);
@@ -710,6 +762,41 @@ public sealed class AgcCpu
         return alreadyDelayed;
     }
 
+    private void UpdateStandby(int scaler1)
+    {
+        // The scaler samples PRO every 1.28 s, then checks it again 0.64 s later.
+        var phase = scaler1 & 0xfff;
+        if (phase == 0)
+            _standbyProSample = (Channels.Get(0x1a) & 0x2000) == 0;
+        if (phase != 0x800 || !_standbyProSample || _standbyProConsumed)
+            return;
+        if (!Standby && (Channels.Get(0x0b) & 0x400) == 0)
+            return;
+
+        Standby = !Standby;
+        _standbyProConsumed = true;
+        _standbyRestartPending = Standby;
+    }
+
+    private void EnterStandbyRestart()
+    {
+        Memory[AgcMemory.Q] = Z;
+        Memory[AgcMemory.Z] = 0x800;
+        ExtraCode = false;
+        InterruptsEnabled = true;
+        InInterrupt = false;
+        _index = 0;
+        _substituteInstruction = false;
+        _trap31A = _trap31B = _trap32 = false;
+        Array.Clear(_interruptRequests);
+        for (var channel = 5; channel <= 0x0c; channel++)
+            if (channel != 7)
+                WriteChannel(channel, 0);
+        WriteChannel(0x1c, 0);
+        WriteChannel(0x1d, 0);
+        _downruptCycle = -1;
+    }
+
     private void WriteChannel(int channel, int value)
     {
         if (channel == 0x0b)
@@ -718,6 +805,10 @@ public sealed class AgcCpu
             _trap31B |= (value & 0x1000) != 0;
             _trap32 |= (value & 0x2000) != 0;
             value &= 0x47ff;
+        }
+        else if (channel == 0x09 && (value & 0x200) != 0)
+        {
+            RestartLight = false;
         }
         else if (channel == 0x1b)
         {

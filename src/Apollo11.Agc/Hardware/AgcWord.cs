@@ -14,15 +14,20 @@ public static class AgcWord
         return word | ((word << 1) & RegisterSignBit);
     }
 
-    public static int OverflowCorrect(int value) =>
-        (value & 0b011_111_111_111_111) | ((value >> 1) & SignBit);
-
-    public static int Overflow(int value) => (value & 0xc000) switch
+    public static int OverflowCorrect(int value)
     {
-        0x4000 => 1,
-        0x8000 => WordMask - 1,
-        _ => 0
-    };
+        return (value & 0b011_111_111_111_111) | ((value >> 1) & SignBit);
+    }
+
+    public static int Overflow(int value)
+    {
+        return (value & 0xc000) switch
+        {
+            0x4000 => 1,
+            0x8000 => WordMask - 1,
+            _ => 0
+        };
+    }
 
     public static int Add(int left, int right)
     {
@@ -33,7 +38,10 @@ public static class AgcWord
         return sum & RegisterMask;
     }
 
-    public static int Negate(int value) => ~value & WordMask;
+    public static int Negate(int value)
+    {
+        return ~value & WordMask;
+    }
 
     public static int ToInt32(int value)
     {
@@ -41,8 +49,10 @@ public static class AgcWord
         return (value & SignBit) == 0 ? value : -(~value & (SignBit - 1));
     }
 
-    public static int FromInt32(int value) =>
-        value < 0 ? ~(-value) & WordMask : value & WordMask;
+    public static int FromInt32(int value)
+    {
+        return value < 0 ? ~(-value) & WordMask : value & WordMask;
+    }
 
     public static bool Increment(ref ushort counter)
     {

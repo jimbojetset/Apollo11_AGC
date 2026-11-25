@@ -25,5 +25,26 @@ Run the local checks with:
 dotnet run --project tests/Apollo11.Agc.Tests
 ```
 
-Later stages should extend the comparison to instruction traces, channel 10
-relay words, channel 11 lamp words, and keypad-generated KEYRUPT behaviour.
+The DSKY regression sends `VERB 3 5 ENTR` through channel 15 and KEYRUPT.
+It compares the channel 10 relay words from Luminary's lamp test with the
+ordered sequence observed in yaAGC, then checks all 21 digits, the three
+register signs, and the annunciators. The relay comparison covers the word
+sequence. Full instruction and cycle-by-cycle comparison remains future work.
+
+## DSKY face
+
+- MIT's configuration report identifies the same DSKY assembly (2003994-091)
+  on Eagle and Intrepid. The faceplate proportions and keyboard spacing were
+  checked against Intrepid's panel photograph and MIT's DSKY photographs.
+  [MIT E-1142, table 2.4](https://www.ibiblio.org/apollo/Documents/E1142-61.pdf)
+  · [LM-6 panel photograph](https://danielmarin.naukas.com/files/2019/07/LM6-co28-1024x1006.jpg)
+  · [MIT R-700, fig. 2-5 and §3.10](https://www.ibiblio.org/apollo/Documents/R-700.pdf)
+- The engraved letter and numeral outlines were redrawn from photographs of
+  original hardware. The separate slanted digits and dark lettering over
+  luminous captions were checked against an energized Sylvania flight spare.
+  The display colors approximate the photographed hardware.
+  [Smithsonian Block II DSKY](https://www.si.edu/object/nasm_A19720313000)
+  · [Powered flight spare](https://www.youtube.com/watch?v=feRCZyLzAwA)
+- Apollo 11 lamp legends and colors follow the LM configuration.
+  [Apollo News Reference](https://www.nasa.gov/wp-content/uploads/static/history/alsj/LM08_Guidance-Navigation-Control_ppGN1-48.pdf)
+  · [Virtual AGC's DSKY documentation](https://www.ibiblio.org/apollo/yaDSKY.html)

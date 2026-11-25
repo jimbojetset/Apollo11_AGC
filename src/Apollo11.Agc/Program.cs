@@ -1,8 +1,10 @@
+using Apollo11.Agc.Dsky;
 using Apollo11.Agc.Hardware;
 
 var ropePath = Path.Combine(AppContext.BaseDirectory, "roms", "Luminary099.bin");
 var cycles = 0L;
 var instructions = 0L;
+var showDsky = false;
 
 for (var index = 0; index < args.Length; index++)
 {
@@ -17,8 +19,11 @@ for (var index = 0; index < args.Length; index++)
         case "--instructions" when index + 1 < args.Length && long.TryParse(args[++index], out var requestedInstructions):
             instructions = requestedInstructions;
             break;
+        case "--dsky":
+            showDsky = true;
+            break;
         case "--help":
-            Console.WriteLine("Usage: Apollo11.Agc [--rope PATH] [--instructions COUNT] [--cycles COUNT]");
+            Console.WriteLine("Usage: Apollo11.Agc [--rope PATH] [--instructions COUNT] [--cycles COUNT] [--dsky]");
             return;
         default:
             Console.Error.WriteLine($"Unknown or incomplete argument: {args[index]}");
@@ -29,16 +34,43 @@ for (var index = 0; index < args.Length; index++)
 
 var cpu = new AgcCpu();
 RopeImage.Load(ropePath, cpu.Memory);
-cpu.Channels.Output += (channel, value) =>
+if (!showDsky)
 {
-    if (channel is 0x08 or 0x09)
-        Console.WriteLine($"{cpu.CycleCount,10}  CH {Convert.ToString(channel, 8).PadLeft(3, '0')} <- {Convert.ToString(value, 8).PadLeft(5, '0')}");
-};
+    cpu.Channels.Output += (channel, value) =>
+    {
+        if (channel is 0x08 or 0x09)
+            Console.WriteLine($"{cpu.CycleCount,10}  CH {Octal(channel, 3)} <- {Octal(value, 5)}");
+    };
+}
 
 if (cycles > 0)
     cpu.Run(cycles);
 for (var instruction = 0L; instruction < instructions; instruction++)
-    cpu.Step();
+    _ = cpu.Step();
+
+if (showDsky)
+{
+    try
+    {
+        DskyWindow.Run(cpu);
+    }
+    catch (DllNotFoundException)
+    {
+        Console.Error.WriteLine("SDL 2.0.18 or newer is required for --dsky. Install the native SDL2 library for this platform.");
+        Environment.ExitCode = 1;
+    }
+    catch (EntryPointNotFoundException)
+    {
+        Console.Error.WriteLine("The loaded SDL2 library is too old. Update to SDL 2.0.18 or newer.");
+        Environment.ExitCode = 1;
+    }
+    catch (InvalidOperationException error)
+    {
+        Console.Error.WriteLine($"Cannot run the SDL DSKY: {error.Message}");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
 
 Console.WriteLine(
     $"Luminary 099 loaded; cycles={cpu.CycleCount}, instructions={cpu.InstructionCount}, " +
