@@ -854,11 +854,9 @@ public sealed class AgcCpu
 
     private static long ToDoubleLength(int high, int low)
     {
-        var highValue = AgcWord.ToInt32(high);
-        var lowMagnitude = low & 0x3fff;
-        return highValue < 0 || (highValue == 0 && (low & AgcWord.SignBit) != 0)
-            ? ((long)highValue << 14) - lowMagnitude
-            : ((long)highValue << 14) + lowMagnitude;
+        // Each half is a signed one's-complement word. The low half can be
+        // negative even when the high half is positive, as in Colossus's DDV.
+        return ((long)AgcWord.ToInt32(high) << 14) + AgcWord.ToInt32(low);
     }
 
     private static void FromDoubleLength(long value, out int high, out int low)

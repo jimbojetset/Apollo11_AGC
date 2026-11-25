@@ -31,6 +31,53 @@ ordered sequence observed in yaAGC, then checks all 21 digits, the three
 register signs, and the annunciators. The relay comparison covers the word
 sequence. Full instruction and cycle-by-cycle comparison remains future work.
 
+## Comanche orbit check
+
+This scenario accepts a yaYUL simulator rope for Comanche 051 (the initial
+release) or 055 (flown on Apollo 11). The reference images were assembled from
+the Virtual AGC revision pinned by `scripts/build-luminary099.sh`, using
+`yaYUL --parity --unpound-page MAIN.agc` in the matching source directory.
+
+```sh
+dotnet run --project tests/Apollo11.Agc.Tests -- --comanche-orbit artifacts/Comanche051.bin
+```
+
+The check seeds the CSM position and velocity at perigee in erasable memory.
+The input describes an Earth orbit with apogee and perigee 400 km and 200 km
+above the stored launch-pad reference radius. `VERB 8 2 ENTR`, then `PRO`,
+runs Colossus routine R30 on the CSM state. Both revisions give `V16 N44`
+with `+02160` and `+01080` (216.0 and 108.0 nautical miles). The third
+register shows `-59 59` because this orbit stays above the 300,000 ft
+reference altitude.
+[Comanche 051 R30 listing](https://www.ibiblio.org/apollo/listings/Comanche051/R30.agc.html)
+· [Comanche 055 R30 listing](https://www.ibiblio.org/apollo/listings/Comanche055/R30.agc.html)
+
+`DV BUF` at octal `00,3436` in `SQRTSUB` divides a double-precision number
+whose high word is positive and whose low word is negative. The previous CPU
+treated the low word as unsigned, adding 16,383 integer counts to this
+dividend. The quotient and remainder were octal `014537` and `023606`.
+Decoding both words as signed one's-complement gives `014536` and `015104`,
+matching yaAGC. The interpreter uses the quotient and the remainder in its
+square-root refinement, and the conic calculation uses that root to compute
+the apsides. The core regression runs this divide and its sign-reversed case.
+[Comanche 055 interpreter listing](https://www.ibiblio.org/apollo/listings/Comanche055/INTERPRETER.agc.html)
+· [Time of Free Fall listing](https://www.ibiblio.org/apollo/listings/Comanche055/TIME_OF_FREE_FALL.agc.html)
+
+| Altitude above pad | C# AGC before fix, 3.17 s | C# AGC and yaAGC, 3.17 s | C# AGC and yaAGC, 3.18 s | Two-body reference |
+| --- | ---: | ---: | ---: | ---: |
+| Apogee | 398,812 m | 400,120 m | 400,118 m | 400,000 m |
+| Perigee | 199,994 m | 200,000 m | 200,006 m | 200,000 m |
+
+In the original keypad runs, R30 began about 300 machine cycles earlier in
+the C# emulator. That put its clock read just before a `TIME1` tick and
+yaAGC's just after it. For the matched-epoch comparisons, `TIME1` was moved by
+one centisecond before `PRO` in yaAGC for 3.17 s and in C# for 3.18 s. Both
+emulators produced identical propagated position and velocity words and
+identical apsides at each matched epoch. The replay checks the propagated
+position, raw apsides and DSKY digits against those captured results. At
+3.17 s, the propagated position is 33.5 m from the independent two-body
+calculation.
+
 ## DSKY face
 
 - MIT's configuration report identifies the same DSKY assembly (2003994-091)

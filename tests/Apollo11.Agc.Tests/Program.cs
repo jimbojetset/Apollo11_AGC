@@ -2,6 +2,9 @@ using System.Security.Cryptography;
 using Apollo11.Agc.Dsky;
 using Apollo11.Agc.Hardware;
 
+if (args is ["--comanche-orbit", var ropePath])
+    return ComancheOrbitCheck.Run(ropePath);
+
 var tests = new (string Name, Action Run)[]
 {
     ("one's-complement end-around carry", OnesComplementEndAroundCarry),
@@ -9,6 +12,7 @@ var tests = new (string Name, Action Run)[]
     ("editing registers", EditingRegisters),
     ("basic instruction execution", BasicInstructions),
     ("DDOUBL central-register path", DoubleDouble),
+    ("DV mixed-sign double-precision dividend", DivideDoublePrecision),
     ("extracode I/O", ExtracodeIo),
     ("DOWNRUPT timing", DownruptTiming),
     ("priority interrupt and RESUME", InterruptAndResume),
@@ -118,6 +122,27 @@ static void DoubleDouble()
 
     Equal(4, cpu.A);
     Equal(6, cpu.L);
+}
+
+static void DivideDoublePrecision()
+{
+    // Comanche's SQRTSUB divides octal 012035,170251 by 31275.
+    foreach (var signMask in new[] { 0, AgcWord.RegisterMask })
+    {
+        var cpu = new AgcCpu();
+        Write(cpu, 0x080, 6); // EXTEND
+        Write(cpu, 0x081, 0x1000 | 0x058); // DV 0130
+        Write(cpu, 0x058, 0x32bd);
+        cpu.Memory[AgcMemory.A] = 0x141d ^ signMask;
+        cpu.Memory[AgcMemory.L] = 0xf0a9 ^ signMask;
+        cpu.Memory[AgcMemory.Z] = 0x080;
+
+        _ = cpu.Step();
+        _ = cpu.Step();
+
+        Equal(0x195e ^ signMask, cpu.A);
+        Equal(0x1a44 ^ signMask, cpu.L);
+    }
 }
 
 static void DownruptTiming()
@@ -295,4 +320,153 @@ static void True(bool condition, string message)
 {
     if (!condition)
         throw new InvalidOperationException(message);
+}
+
+internal static class ComancheOrbitCheck
+{
+    private const double PadRadius = 6_373_338; // Comanche 055 RPAD, pad 37-B, in metres.
+    private const double Perigee = PadRadius + 200_000;
+    private const double Apogee = PadRadius + 400_000;
+    private const double EarthMu = 3.986032e14; // m³/s²
+    private const string Comanche051Hash = "ba8da18eb8f777f4119a470f8ceefa26386a5300afb0149d085c2d91ad703804";
+    private const string Comanche055Hash = "2ba31de9291cd10fb351a64d261bae8514a1cb75b4651bfa6a135dfa821a2d79";
+
+    // Comanche 051 and 055 share these switched erasable addresses, in octal.
+    private const string RrectCsm = "1554", VrectCsm = "1562", RcvCsm = "1606", VcvCsm = "1614";
+    private const string Tstart82 = "1724", Rone = "1726", Hapo = "1751", Hper = "1753";
+
+    public static int Run(string ropePath)
+    {
+        byte[] rope;
+        try
+        {
+            rope = File.ReadAllBytes(ropePath);
+        }
+        catch (IOException error)
+        {
+            return Fail(error.Message);
+        }
+        if (rope.Length != AgcMemory.FixedBankCount * AgcMemory.FixedBankSize * 2)
+            return Fail("Expected a complete Comanche 051 or 055 simulator rope image.");
+
+        var cpu = new AgcCpu();
+        using (var stream = new MemoryStream(rope))
+            RopeImage.Load(stream, cpu.Memory);
+        // yaYUL can leave the low parity bit clear without changing the program.
+        for (var offset = 1; offset < rope.Length; offset += 2)
+            rope[offset] &= 0xfe;
+        var revision = Convert.ToHexStringLower(SHA256.HashData(rope)) switch
+        {
+            Comanche051Hash => "051",
+            Comanche055Hash => "055",
+            _ => null,
+        };
+        if (revision is null)
+            return Fail("The fixture uses specific erasable addresses. Supply the yaYUL rope for Comanche 051 or 055.");
+
+        var speed = Math.Sqrt(2 * EarthMu * Apogee / (Perigee * (Perigee + Apogee)));
+        cpu.Run(100_000);
+        // Epoch and time since rectification are zero in cold erasable. At rectification,
+        // the stored conic and rectified states coincide. B29 position is in metres,
+        // while B7 velocity is in metres per centisecond.
+        WritePair(RrectCsm, 0, Perigee, 29);
+        WritePair(RcvCsm, 0, Perigee, 29);
+        WritePair(VrectCsm, 2, speed / 100, 7);
+        WritePair(VcvCsm, 2, speed / 100, 7);
+
+        var dsky = new DskyPanel(cpu);
+        foreach (var key in new[] { DskyKey.Verb, DskyKey.Eight, DskyKey.Two, DskyKey.Enter })
+        {
+            dsky.Press(key);
+            cpu.Run(17_000);
+        }
+        cpu.Run(100_000);
+        if (Digits(2, 4) != "0412" || Digits(11, 5) != "00001")
+            return Fail("Comanche did not prompt for the CSM on the VERB 82 option display.");
+
+        dsky.Press(DskyKey.Proceed);
+        cpu.Run(17_000);
+        dsky.Release(DskyKey.Proceed);
+
+        var deadline = cpu.CycleCount + 10 * AgcCpu.MachineCyclesPerSecond;
+        while (ReadPair(Hapo) == 0 && cpu.CycleCount < deadline)
+            _ = cpu.Step();
+        if (cpu.CycleCount >= deadline)
+            return Fail("Comanche did not compute an apogee within ten emulated seconds.");
+
+        // R30 later reuses TSTART82 for elapsed calculation time. Read the propagation
+        // epoch while the routine is still storing the apsides.
+        var epochCentiseconds = ReadPair(Tstart82);
+        var epoch = epochCentiseconds / 100.0;
+        var x = 2.0 * ReadPair(Rone);
+        var y = 2.0 * ReadPair(Rone, 2);
+        var z = 2.0 * ReadPair(Rone, 4);
+        var (referenceX, referenceY) = KeplerPosition(epoch);
+        var positionDifference = Math.Sqrt(Math.Pow(x - referenceX, 2) + Math.Pow(y - referenceY, 2) + z * z);
+
+        cpu.Run(AgcCpu.MachineCyclesPerSecond);
+        var display = $"{dsky.Sign(0)}{Digits(6, 5)}  {dsky.Sign(1)}{Digits(11, 5)}  {dsky.Sign(2)}{Digits(16, 5)}";
+        if (Digits(2, 4) != "1644" || display != "+02160  +01080  -59 59")
+            return Fail($"Expected V16 N44 with +02160  +01080  -59 59. Got {Digits(2, 4)} with {display}.");
+
+        // R30 samples TIME1 shortly after PRO. Compare the result at the sampled epoch.
+        var yaAgc = epochCentiseconds switch
+        {
+            317 => (Y: 24_896, Apogee: 400_120, Perigee: 200_000),
+            318 => (Y: 24_960, Apogee: 400_118, Perigee: 200_006),
+            _ => (Y: 0, Apogee: 0, Perigee: 0),
+        };
+        if (yaAgc.Apogee == 0)
+            return Fail($"No yaAGC reference for the sampled epoch of {epoch:F2} s.");
+
+        var apogee = ReadPair(Hapo) * 2;
+        var perigee = ReadPair(Hper) * 2;
+        Console.WriteLine($"Input at T=0: R=({Perigee:F0}, 0, 0) m, V=(0, {speed:F6}, 0) m/s");
+        Console.WriteLine($"At T={epoch:F2} s, Comanche {revision}: ({x:F0}, {y:F0}, {z:F0}) m");
+        Console.WriteLine($"Kepler reference: ({referenceX:F1}, {referenceY:F1}, 0) m. Position difference: {positionDifference:F1} m.");
+        Console.WriteLine($"Apogee / perigee above pad: {apogee} / {perigee} m");
+        Console.WriteLine($"Two-body reference: 400000 / 200000 m. yaAGC at the same epoch: {yaAgc.Apogee} / {yaAgc.Perigee} m.");
+        Console.WriteLine($"V16 N44: {display}");
+
+        if ((x, y, z) != (6_573_312, yaAgc.Y, 0) || (apogee, perigee) != (yaAgc.Apogee, yaAgc.Perigee))
+            return Fail("Comanche disagrees with the propagated position or apsides from yaAGC at the same epoch.");
+        return 0;
+
+        string Digits(int first, int count) => string.Concat(Enumerable.Range(first, count).Select(dsky.Digit));
+
+        void WritePair(string address, int index, double value, int scale)
+        {
+            var offset = (Convert.ToInt32(address, 8) & 0xff) + index;
+            var fraction = (int)Math.Round(Math.ScaleB(value, 28 - scale));
+            cpu.Memory.WriteErasable(3, offset, fraction >> 14);
+            cpu.Memory.WriteErasable(3, offset + 1, fraction & 0x3fff);
+        }
+
+        int ReadPair(string address, int index = 0)
+        {
+            var offset = (Convert.ToInt32(address, 8) & 0xff) + index;
+            var high = AgcWord.ToInt32(cpu.Memory.ReadErasable(4, offset));
+            var low = AgcWord.ToInt32(cpu.Memory.ReadErasable(4, offset + 1));
+            return (high << 14) + low;
+        }
+    }
+
+    private static (double X, double Y) KeplerPosition(double seconds)
+    {
+        var axis = (Apogee + Perigee) / 2;
+        var eccentricity = (Apogee - Perigee) / (Apogee + Perigee);
+        var meanAnomaly = Math.Sqrt(EarthMu / (axis * axis * axis)) * seconds;
+        var anomaly = meanAnomaly;
+        for (var i = 0; i < 4; i++)
+            anomaly -= (anomaly - eccentricity * Math.Sin(anomaly) - meanAnomaly) /
+                (1 - eccentricity * Math.Cos(anomaly));
+        return (axis * (Math.Cos(anomaly) - eccentricity),
+            axis * Math.Sqrt(1 - eccentricity * eccentricity) * Math.Sin(anomaly));
+    }
+
+    private static int Fail(string message)
+    {
+        Console.Error.WriteLine(message);
+        return 1;
+    }
 }

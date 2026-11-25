@@ -4,7 +4,7 @@ using Apollo11.Agc.Hardware;
 var ropePath = Path.Combine(AppContext.BaseDirectory, "roms", "Luminary099.bin");
 var cycles = 0L;
 var instructions = 0L;
-var showDsky = false;
+var noDsky = false;
 
 for (var index = 0; index < args.Length; index++)
 {
@@ -19,8 +19,8 @@ for (var index = 0; index < args.Length; index++)
         case "--instructions" when index + 1 < args.Length && long.TryParse(args[++index], out var requestedInstructions):
             instructions = requestedInstructions;
             break;
-        case "--dsky":
-            showDsky = true;
+        case "--nodsky":
+            noDsky = true;
             break;
         case "--help":
             Console.WriteLine("Usage: Apollo11.Agc [--rope PATH] [--instructions COUNT] [--cycles COUNT] [--dsky]");
@@ -34,7 +34,7 @@ for (var index = 0; index < args.Length; index++)
 
 var cpu = new AgcCpu();
 RopeImage.Load(ropePath, cpu.Memory);
-if (!showDsky)
+if (noDsky)
 {
     cpu.Channels.Output += (channel, value) =>
     {
@@ -48,7 +48,7 @@ if (cycles > 0)
 for (var instruction = 0L; instruction < instructions; instruction++)
     _ = cpu.Step();
 
-if (showDsky)
+if (!noDsky)
 {
     try
     {
