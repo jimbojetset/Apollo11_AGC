@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/Apollo11.Agc/Apollo11.Agc.csproj" />
+  <Project Path="tests/Apollo11.Agc.Tests/Apollo11.Agc.Tests.csproj" />
+</Solution>
