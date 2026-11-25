@@ -27,6 +27,8 @@ Enter `VERB 3 5 ENTR` to run Luminary's lamp test and see the register segments
 and annunciators. The panel starts with Luminary's cold-start state and changes
 as the flight software writes to the AGC channels.
 
+![Apollo 11 DSKY during Luminary 099's lamp test, with the annunciators lit and eights in the displays](dsky-lamp-test.png)
+
 For headless use, the cycle rate is 85,333⅓ machine cycles per second. Channel 10
 relay words and channel 11 lamp words are printed in octal.
 
