@@ -39,7 +39,7 @@ Click or tap the keys or use the same keyboard shortcuts. The emulated clock
 pauses while the tab is hidden.
 
 ```sh
-dotnet workload install wasm-tools
+dotnet workload install wasm-tools --source https://api.nuget.org/v3/index.json
 dotnet run --project Web/Apollo11.Agc.Web.csproj
 ```
 

@@ -38,7 +38,7 @@ jobs:
           global-json-file: global.json
 
       - name: Install WebAssembly build tools
-        run: dotnet workload install wasm-tools --skip-manifest-update
+        run: dotnet workload install wasm-tools --skip-manifest-update --source https://api.nuget.org/v3/index.json
 
       - name: Check the desktop solution
         run: dotnet run --project tests/Apollo11.Agc.Tests -c Release
