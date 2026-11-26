@@ -1,0 +1,76 @@
+name: Deploy Apollo 11 DSKY to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Verify flight ropes
+        run: |
+          sha256sum --check <<'EOF'
+          b7a2abb432df5d4ce242c238e25fd2cf6711f72fb88b888a4b972afb3dea41c1  roms/Luminary099.bin
+          c822021d3c80f9687d1ef3b4c4f9c5dc673fe6a66337438c553c4f5b112e372a  artifacts/Comanche055.bin
+          EOF
+
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Install WebAssembly build tools
+        run: dotnet workload install wasm-tools --skip-manifest-update
+
+      - name: Check the desktop solution
+        run: dotnet run --project tests/Apollo11.Agc.Tests -c Release
+
+      - name: Publish WebAssembly
+        run: dotnet publish Web/Apollo11.Agc.Web.csproj -c Release -o "$RUNNER_TEMP/apollo-pages"
+
+      - name: Set the Pages base path
+        env:
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: |
+          site="$RUNNER_TEMP/apollo-pages/wwwroot"
+          sed -i "s|<base href=\"\./\">|<base href=\"${PAGES_BASE_PATH%/}/\">|" "$site/index.html"
+          rm -f "$site/index.html.br" "$site/index.html.gz"
+          cmp roms/Luminary099.bin "$site/roms/Luminary099.bin"
+          cmp artifacts/Comanche055.bin "$site/roms/Comanche055.bin"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/apollo-pages/wwwroot
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

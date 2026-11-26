@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Operate the Apollo 11 DSKY with the original Luminary 099 and Comanche 055 flight software.">
+    <title>Apollo 11 DSKY</title>
+    <base href="./">
+    <link rel="stylesheet" href="css/dsky.css">
+</head>
+<body>
+    <div id="app"><p class="startup" role="status">Starting the AGC…</p></div>
+    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <script>
+        async function start() {
+            try {
+                await Blazor.start();
+            } catch (error) {
+                document.querySelector('#app').textContent = 'Could not start WebAssembly. Check that your browser allows it and reload.';
+                console.error(error);
+            }
+        }
+        start();
+    </script>
+</body>
+</html>

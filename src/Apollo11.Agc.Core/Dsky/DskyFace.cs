@@ -1,8 +1,9 @@
-using static Apollo11.Agc.Dsky.Sdl;
+using Point = Apollo11.Agc.Dsky.DskyPoint;
+using Rect = Apollo11.Agc.Dsky.DskyRect;
 
 namespace Apollo11.Agc.Dsky;
 
-internal sealed partial class DskyFace(nint renderer)
+public sealed partial class DskyFace(DskyDrawing drawing)
 {
     public const int Width = 624;
     public const int Height = 702;
@@ -47,10 +48,12 @@ internal sealed partial class DskyFace(nint renderer)
         return null;
     }
 
+    public static IEnumerable<(DskyKey Key, string Label, DskyRect Bounds)> KeyPositions =>
+        Keys.Select(key => (key.Key, key.Label, KeyBounds(key.Column, key.Y)));
+
     public void Draw(DskyPanel panel, IEnumerable<DskyKey> pressedKeys, DskyKey? mouseKey)
     {
-        Color(0x242625);
-        _ = SDL_RenderClear(renderer);
+        drawing.Clear(0x242625);
         Chamfer(new Rect(5, 8, 614, 690), 11, 0x151818);
         Chamfer(new Rect(11, 5, 602, 687), 12, 0x626665);
         Chamfer(new Rect(13, 7, 598, 680), 10, 0x979b98, 0x747976);
@@ -220,40 +223,7 @@ internal sealed partial class DskyFace(nint renderer)
     }
 
     private void Polygon(ReadOnlySpan<Point> points, float x, float y, int top, int bottom,
-        float height, float skew = 0)
-    {
-        Span<Vertex> vertices = stackalloc Vertex[points.Length];
-        Span<int> indices = stackalloc int[(points.Length - 2) * 3];
-        for (var i = 0; i < points.Length; i++)
-        {
-            var point = points[i];
-            var blend = Math.Clamp(point.Y / height, 0, 1);
-            vertices[i] = new Vertex(new Point(x + point.X - point.Y * skew, y + point.Y),
-                Shade(top >> 16, bottom >> 16, blend), Shade(top >> 8, bottom >> 8, blend),
-                Shade(top, bottom, blend), 255, default);
-        }
-        for (var i = 0; i < points.Length - 2; i++)
-        {
-            indices[i * 3] = 0;
-            indices[i * 3 + 1] = i + 1;
-            indices[i * 3 + 2] = i + 2;
-        }
-        _ = SDL_RenderGeometry(renderer, 0, in vertices[0], vertices.Length, in indices[0], indices.Length);
-    }
+        float height, float skew = 0) => drawing.Polygon(points, x, y, top, bottom, height, skew);
 
-    private static byte Shade(int from, int to, float blend)
-    {
-        return (byte)((from & 255) * (1 - blend) + (to & 255) * blend + 0.5f);
-    }
-
-    private void Fill(Rect rect, int rgb)
-    {
-        Color(rgb);
-        _ = SDL_RenderFillRect(renderer, rect);
-    }
-
-    private void Color(int rgb)
-    {
-        _ = SDL_SetRenderDrawColor(renderer, (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, 255);
-    }
+    private void Fill(Rect rect, int rgb) => drawing.Fill(rect, rgb);
 }

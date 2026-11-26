@@ -1,0 +1,99 @@
+@using Apollo11.Agc.Dsky
+@using Apollo11.Agc.Hardware
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<main>
+    <header>
+        <h1>Apollo 11 DSKY</h1>
+        <select id="rope" aria-label="Flight software" @bind:get="_ropeFile" @bind:set="ChangeRopeAsync" disabled="@(!_ready)">
+            <option value="@Luminary">Luminary 099</option>
+            <option value="@Comanche">Comanche 055</option>
+        </select>
+    </header>
+
+    <div id="panel" class="panel" role="group" aria-label="DSKY" style="aspect-ratio: @DskyFace.Width / @DskyFace.Height">
+        <canvas id="face" width="@DskyFace.Width" height="@DskyFace.Height" aria-label="DSKY face and display"></canvas>
+        @foreach (var (key, label, bounds) in DskyFace.KeyPositions)
+        {
+            <button type="button" class="key" data-key="@key" data-code="@((int)key)" aria-label="@label.Replace('\n', ' ')"
+                    style="--key-x:@bounds.X; --key-y:@bounds.Y; --key-w:@bounds.W; --key-h:@bounds.H" disabled="@(!_ready)"></button>
+        }
+    </div>
+
+    <p id="status" role="status" class="status" hidden="@(_status is null)">@_status</p>
+    <p class="instructions">Try the lamp test with <kbd>VERB</kbd> <kbd>3</kbd> <kbd>5</kbd> <kbd>ENTR</kbd>.</p>
+    <p class="shortcuts">Keyboard shortcuts <kbd>V</kbd> VERB · <kbd>N</kbd> NOUN · <kbd>Enter</kbd> ENTR · <kbd>P</kbd> PRO · <kbd>C</kbd> CLR · <kbd>K</kbd> KEY REL · <kbd>R</kbd> RSET</p>
+</main>
+
+@code {
+    private const string Luminary = "Luminary099.bin";
+    private const string Comanche = "Comanche055.bin";
+    private DotNetObjectReference<WebDsky>? _session;
+    private IJSObjectReference? _browser;
+    private string _ropeFile = Luminary;
+    private bool _ready;
+    private string? _status = "Loading Luminary 099…";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            _session = DotNetObjectReference.Create(new WebDsky(await BootAsync(_ropeFile)));
+            var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/dsky.js");
+            _browser = await module.InvokeAsync<IJSObjectReference>("initialize", _session);
+            _ready = true;
+            _status = null;
+        }
+        catch (Exception error) when (error is HttpRequestException or IOException or InvalidDataException or JSException)
+        {
+            _status = $"Could not start the DSKY. {error.Message}";
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ChangeRopeAsync(string file)
+    {
+        if (!_ready || file == _ropeFile || file is not (Luminary or Comanche))
+            return;
+
+        var previousRope = _ropeFile;
+        _ready = false;
+        _ropeFile = file;
+        _status = $"Loading {file}…";
+        try
+        {
+            var cpu = await BootAsync(file);
+            await _browser!.InvokeVoidAsync("resetInput");
+            _session!.Value.Reset(cpu);
+            _status = null;
+        }
+        catch (Exception error) when (error is HttpRequestException or IOException or InvalidDataException or JSException)
+        {
+            _ropeFile = previousRope;
+            _status = $"Could not load {file}. {error.Message}";
+        }
+        finally
+        {
+            _ready = true;
+        }
+    }
+
+    private async Task<AgcCpu> BootAsync(string file)
+    {
+        var rope = await Http.GetByteArrayAsync($"roms/{file}");
+        if (rope.Length != 2 * AgcMemory.FixedBankCount * AgcMemory.FixedBankSize)
+            throw new InvalidDataException($"{file} has an unexpected rope size.");
+
+        var cpu = new AgcCpu();
+        using var stream = new MemoryStream(rope);
+        RopeImage.Load(stream, cpu.Memory);
+        return cpu;
+    }
+}

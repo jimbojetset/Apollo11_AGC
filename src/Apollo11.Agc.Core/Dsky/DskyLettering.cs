@@ -1,8 +1,9 @@
-using static Apollo11.Agc.Dsky.Sdl;
+using Point = Apollo11.Agc.Dsky.DskyPoint;
+using Rect = Apollo11.Agc.Dsky.DskyRect;
 
 namespace Apollo11.Agc.Dsky;
 
-internal sealed partial class DskyFace
+public sealed partial class DskyFace
 {
     private static readonly Point[][] Engravings = Enumerable.Range(0, 'Z' + 1)
         .Select(i => Engraving((char)i)).ToArray();

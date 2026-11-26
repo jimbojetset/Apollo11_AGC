@@ -31,7 +31,7 @@ internal static class DskyWindow
             faceBuffer = SDL_CreateTexture(renderer, Argb8888, TargetTexture, DskyFace.Width * 2, DskyFace.Height * 2);
             if (faceBuffer != 0)
                 _ = SDL_SetTextureScaleMode(faceBuffer, Linear);
-            RunPanel(cpu, new DskyFace(renderer), renderer, faceBuffer);
+            RunPanel(cpu, new DskyFace(new SdlDskyDrawing(renderer)), renderer, faceBuffer);
         }
         finally
         {

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Apollo11.Agc.Web</RootNamespace>
+    <RestoreAdditionalProjectSources>https://api.nuget.org/v3/index.json</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.15" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.15" PrivateAssets="all" />
+    <ProjectReference Include="../src/Apollo11.Agc.Core/Apollo11.Agc.Core.csproj" />
+    <RopeSource Include="../roms/Luminary099.bin;../artifacts/Comanche055.bin" />
+  </ItemGroup>
+
+  <Target Name="ResolveRopeAssets" BeforeTargets="ResolveProjectStaticWebAssets">
+    <PropertyGroup>
+      <RopeAssetRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'rope-assets'))</RopeAssetRoot>
+    </PropertyGroup>
+    <Copy SourceFiles="@(RopeSource)" DestinationFolder="$(RopeAssetRoot)roms" SkipUnchangedFiles="true">
+      <Output TaskParameter="CopiedFiles" ItemName="RopeAsset" />
+      <Output TaskParameter="CopiedFiles" ItemName="FileWrites" />
+    </Copy>
+    <ItemGroup>
+      <RopeAsset Update="@(RopeAsset)" RelativePath="roms/%(Filename)%(Extension)" />
+    </ItemGroup>
+    <DefineStaticWebAssets CandidateAssets="@(RopeAsset)" SourceType="Discovered" SourceId="$(PackageId)"
+                           ContentRoot="$(RopeAssetRoot)" BasePath="$(StaticWebAssetBasePath)"
+                           AssetMergeSource="$(StaticWebAssetMergeTarget)">
+      <Output TaskParameter="Assets" ItemName="StaticWebAsset" />
+      <Output TaskParameter="Assets" ItemName="_CurrentProjectStaticWebAsset" />
+    </DefineStaticWebAssets>
+  </Target>
+</Project>

@@ -11,7 +11,7 @@ driven TIME counters, priority interrupts, and 9-bit I/O channels.
 
 ```sh
 dotnet build Apollo11.Agc.slnx
-dotnet run --project src/Apollo11.Agc -- --dsky
+dotnet run --project src/Apollo11.Agc
 ```
 
 The window uses SDL 2.0.18 or newer. On macOS, `brew install sdl2` provides
@@ -28,6 +28,33 @@ and annunciators. The panel starts with Luminary's cold-start state and changes
 as the flight software writes to the AGC channels.
 
 ![Apollo 11 DSKY during Luminary 099's lamp test, with the annunciators lit and eights in the displays](dsky-lamp-test.png)
+
+## Run in a browser
+
+[Open the Apollo 11 DSKY on GitHub Pages](https://jimbojetset.github.io/Apollo11_AGC/).
+
+The `Web/` project runs Luminary 099 and Comanche 055 in Blazor WebAssembly.
+It shares the AGC core and Lunar Module panel geometry with the SDL app.
+Click or tap the keys or use the same keyboard shortcuts. The emulated clock
+pauses while the tab is hidden.
+
+```sh
+dotnet workload install wasm-tools
+dotnet run --project Web/Apollo11.Agc.Web.csproj
+```
+
+Open the local URL printed by the development server. Select the flight
+software above the panel. Changing ropes starts a fresh AGC session and
+clears the displays and keypad state. `VERB 3 5 ENTR` runs the lamp test.
+
+```sh
+dotnet publish Web/Apollo11.Agc.Web.csproj -c Release
+```
+
+The published site is in `Web/bin/Release/net10.0/publish/wwwroot`. The GitHub
+Pages workflow builds and uploads it when the repository's Pages source is
+set to **GitHub Actions**. `Apollo11.Agc.slnx` builds the desktop app and its
+tests with the regular .NET SDK.
 
 ## Calculate an orbit on the DSKY
 
@@ -105,8 +132,8 @@ For headless use, the cycle rate is 85,333⅓ machine cycles per second. Channel
 relay words and channel 11 lamp words are printed in octal.
 
 ```sh
-dotnet run --project src/Apollo11.Agc -- --cycles 85333
-dotnet run --project src/Apollo11.Agc -- --instructions 1000
+dotnet run --project src/Apollo11.Agc -- --nodsky --cycles 85333
+dotnet run --project src/Apollo11.Agc -- --nodsky --instructions 1000
 ```
 
 Rebuild the Luminary rope from the pinned Virtual AGC source with:

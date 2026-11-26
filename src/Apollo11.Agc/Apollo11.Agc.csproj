@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Apollo11.Agc.Core/Apollo11.Agc.Core.csproj" />
     <Content Include="../../roms/Luminary099.bin" Link="roms/Luminary099.bin">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
