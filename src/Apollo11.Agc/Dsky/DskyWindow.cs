@@ -6,7 +6,7 @@ namespace Apollo11.Agc.Dsky;
 
 internal static class DskyWindow
 {
-    public static void Run(AgcCpu cpu)
+    public static void Run(AgcCpu cpu, DskySpacecraft spacecraft)
     {
         if (SDL_Init(Video) != 0)
             throw new InvalidOperationException(Error);
@@ -16,7 +16,8 @@ internal static class DskyWindow
         nint faceBuffer = 0;
         try
         {
-            window = SDL_CreateWindow("Apollo 11 LM DSKY", WindowCentered, WindowCentered,
+            var title = spacecraft == DskySpacecraft.CommandModule ? "Apollo 11 CM DSKY" : "Apollo 11 LM DSKY";
+            window = SDL_CreateWindow(title, WindowCentered, WindowCentered,
                 DskyFace.Width, DskyFace.Height, WindowResizable | WindowHighDpi);
             if (window == 0)
                 throw new InvalidOperationException(Error);
@@ -31,7 +32,7 @@ internal static class DskyWindow
             faceBuffer = SDL_CreateTexture(renderer, Argb8888, TargetTexture, DskyFace.Width * 2, DskyFace.Height * 2);
             if (faceBuffer != 0)
                 _ = SDL_SetTextureScaleMode(faceBuffer, Linear);
-            RunPanel(cpu, new DskyFace(new SdlDskyDrawing(renderer)), renderer, faceBuffer);
+            RunPanel(cpu, new DskyPanel(cpu, spacecraft), new DskyFace(new SdlDskyDrawing(renderer)), renderer, faceBuffer);
         }
         finally
         {
@@ -45,9 +46,8 @@ internal static class DskyWindow
         }
     }
 
-    private static void RunPanel(AgcCpu cpu, DskyFace face, nint renderer, nint faceBuffer)
+    private static void RunPanel(AgcCpu cpu, DskyPanel panel, DskyFace face, nint renderer, nint faceBuffer)
     {
-        var panel = new DskyPanel(cpu);
         var keyboard = new Dictionary<int, DskyKey>();
         var keysToSend = new Queue<DskyKey>();
         DskyKey? mouseKey = null;

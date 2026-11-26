@@ -8,6 +8,8 @@ internal static class Program
     {
         if (args is ["--comanche-orbit", var ropePath])
             return ComancheOrbitCheck.Run(ropePath);
+        if (args is ["--block-ii-validation", var validationPath])
+            return RunBlockIiValidation(validationPath);
 
         var tests = new (string Name, Action Run)[]
         {
@@ -17,12 +19,16 @@ internal static class Program
     ("basic instruction execution", BasicInstructions),
     ("DDOUBL central-register path", DoubleDouble),
     ("DV mixed-sign double-precision dividend", DivideDoublePrecision),
+    ("DV signed zeros and unit quotient", DivideBoundaries),
+    ("MP zero and MP/DV editing register reads", MultiplyAndDivideEditingRegister),
+    ("double-word transfers through L and Q", DoubleRegisterTransfers),
     ("extracode I/O", ExtracodeIo),
     ("DOWNRUPT timing", DownruptTiming),
     ("priority interrupt and RESUME", InterruptAndResume),
     ("timer scaler", TimerScaler),
     ("Luminary 099 rope", LuminaryRope),
     ("DSKY display relays and flashing", DskyRelays),
+    ("DSKY spacecraft annunciators", DskySpacecraftAnnunciators),
     ("DSKY keypad and standby wiring", DskyKeypad),
     ("Luminary 099 DSKY lamp test", LuminaryLampTest)
         };
@@ -150,6 +156,93 @@ static void DivideDoublePrecision()
     }
 }
 
+static void DivideBoundaries()
+{
+    const int minusZero = AgcWord.RegisterMask;
+    const int minusOne = minusZero - 1;
+    const int minusMax = AgcWord.RegisterSignBit | AgcWord.SignBit;
+    const int max = AgcWord.SignBit - 1;
+    const int nearMinusMax = minusMax + 1;
+    var cases = new (int A, int L, int Divisor, int Quotient, int Remainder)[]
+    {
+        (0, minusZero, 2, minusZero, minusZero),
+        (minusZero, 0, minusZero, minusMax, 0),
+        (0, minusOne, minusOne, 1, minusZero),
+        (max - 1, 0, max - 1, max, max - 1),
+        (nearMinusMax, 0, max - 1, minusMax, nearMinusMax),
+    };
+
+    var cpu = new AgcCpu();
+    Write(cpu, 0x080, 6); // EXTEND
+    Write(cpu, 0x081, 0x1000 | 0x058); // DV 0130
+    foreach (var test in cases)
+    {
+        Write(cpu, 0x058, test.Divisor & AgcWord.WordMask);
+        cpu.Memory[AgcMemory.A] = test.A;
+        cpu.Memory[AgcMemory.L] = test.L;
+        cpu.Memory[AgcMemory.Z] = 0x080;
+
+        _ = cpu.Step();
+        _ = cpu.Step();
+
+        Equal((test.Quotient, test.Remainder), (cpu.A, cpu.L));
+    }
+}
+
+static void MultiplyAndDivideEditingRegister()
+{
+    var cpu = new AgcCpu();
+    Write(cpu, 0x080, 6); // EXTEND
+    Write(cpu, 0x081, 0x7000 | AgcMemory.Sr); // MP SR
+    Write(cpu, 0x082, 6); // EXTEND
+    Write(cpu, 0x083, 0x1000 | AgcMemory.Sr); // DV SR
+    cpu.Memory[AgcMemory.Sr] = 4;
+    cpu.Memory[AgcMemory.A] = 3;
+    cpu.Memory[AgcMemory.Z] = 0x080;
+
+    _ = cpu.Step();
+    _ = cpu.Step();
+    Equal((0, 6, 2), (cpu.A, cpu.L, cpu.Memory[AgcMemory.Sr]));
+    _ = cpu.Step();
+    _ = cpu.Step();
+    Equal((3, 0, 2), (cpu.A, cpu.L, cpu.Memory[AgcMemory.Sr]));
+
+    cpu.Memory[AgcMemory.A] = AgcWord.RegisterMask;
+    cpu.Memory[AgcMemory.Sr] = 0;
+    cpu.Memory[AgcMemory.Z] = 0x080;
+    _ = cpu.Step();
+    _ = cpu.Step();
+    Equal((0, 0), (cpu.A, cpu.L));
+}
+
+static void DoubleRegisterTransfers()
+{
+    const int negativeOverflow = 0xbfff;
+    const int minusZero = AgcWord.RegisterMask;
+    var cases = new (int Opcode, bool Extended, int A, int L, int Q)[]
+    {
+        (0x5400, false, minusZero, 5, 3), // DXCH L
+        (0x3000, true, minusZero, minusZero, negativeOverflow), // DCA L
+        (0x4000, true, minusZero, 0, negativeOverflow), // DCS L
+    };
+    foreach (var test in cases)
+    {
+        var cpu = new AgcCpu();
+        Write(cpu, 0x080, 6); // EXTEND
+        Write(cpu, 0x081, test.Opcode | AgcMemory.Q); // Encoded address is L+1.
+        cpu.Memory[AgcMemory.A] = 5;
+        cpu.Memory[AgcMemory.L] = 3;
+        cpu.Memory[AgcMemory.Q] = negativeOverflow;
+        cpu.Memory[AgcMemory.Z] = test.Extended ? 0x080 : 0x081;
+
+        if (test.Extended)
+            _ = cpu.Step();
+        _ = cpu.Step();
+
+        Equal((test.A, test.L, test.Q), (cpu.A, cpu.L, cpu.Q));
+    }
+}
+
 static void DownruptTiming()
 {
     var cpu = new AgcCpu();
@@ -249,6 +342,20 @@ static void DskyRelays()
     True(panel.Lamps.HasFlag(DskyLamps.OperatorError), "OPR ERR did not turn on in the visible flash phase.");
 }
 
+static void DskySpacecraftAnnunciators()
+{
+    var cpu = new AgcCpu();
+    var eagle = new DskyPanel(cpu, DskySpacecraft.LunarModule);
+    var columbia = new DskyPanel(cpu, DskySpacecraft.CommandModule);
+    const int relayWord = (12 << 11) | 0x100 | 0x10 | 0x04; // PROG, ALT, VEL
+    cpu.Channels.Write(0x08, relayWord, cpu.Memory);
+
+    var common = DskyLamps.Program | DskyLamps.Restart;
+    Equal(common | DskyLamps.Altitude | DskyLamps.Velocity, eagle.Lamps);
+    Equal(common, columbia.Lamps);
+    Equal(relayWord, cpu.Channels.GetLatchedRelayRow(12));
+}
+
 static void DskyKeypad()
 {
     var cpu = new AgcCpu();
@@ -305,6 +412,70 @@ static void LuminaryLampTest()
     Equal('+', panel.Sign(2));
     True(panel.Lamps.HasFlag(DskyLamps.Standby | DskyLamps.Restart | DskyLamps.Altitude | DskyLamps.Velocity),
         "Luminary's V35 lamp test did not light STBY, RESTART, ALT and VEL.");
+}
+
+static int RunBlockIiValidation(string ropePath)
+{
+    // Entry points and result words from the pinned Validation listing.
+    const int waitForProceed = 0xf3c;  // PRONWAIT, octal 7474
+    const int waitForRelease = 0xf46;  // PROFWAIT, octal 7506
+    const int done = 0xf1e;            // DONE, octal 7436
+    const int errorNumber = 0x31;      // ERRNUM, octal 0061
+    const int errorSubtest = 0x32;     // ERRSUB, octal 0062
+    const int complete = 0x3f;        // PROG 77
+    const string ropeHash = "37fa8de9e09345fe7d7448ff6609d3f9ffdf6e88ff26f66c32a45548d09be839";
+
+    var cpu = new AgcCpu();
+    try
+    {
+        using var rope = File.OpenRead(ropePath);
+        if (Convert.ToHexStringLower(SHA256.HashData(rope)) != ropeHash)
+        {
+            Console.Error.WriteLine("Expected the Validation rope assembled from the pinned Virtual AGC revision with parity.");
+            return 1;
+        }
+        rope.Position = 0;
+        RopeImage.Load(rope, cpu.Memory);
+    }
+    catch (IOException error)
+    {
+        Console.Error.WriteLine(error.Message);
+        return 1;
+    }
+
+    var panel = new DskyPanel(cpu);
+    var errors = 0;
+    var proceedHeld = false;
+    while (cpu.CycleCount < 24_000_000 && cpu.Z != done)
+    {
+        if (cpu.Z == waitForProceed && !proceedHeld)
+        {
+            var code = cpu.Memory[errorNumber] & 0x3f;
+            var subtest = cpu.Memory[errorSubtest] & 0x3f;
+            if (code is not (0 or complete) || subtest != 0)
+            {
+                Console.Error.WriteLine($"FAIL  Block II Validation PROG {Convert.ToString(code, 8).PadLeft(2, '0')} NOUN {Convert.ToString(subtest, 8).PadLeft(2, '0')}");
+                errors++;
+            }
+            panel.Press(DskyKey.Proceed);
+            proceedHeld = true;
+        }
+        else if (cpu.Z == waitForRelease && proceedHeld)
+        {
+            panel.Release(DskyKey.Proceed);
+            proceedHeld = false;
+        }
+        _ = cpu.Step();
+    }
+
+    if (cpu.Z != done || (cpu.Memory[errorNumber] & 0x3f) != complete)
+    {
+        Console.Error.WriteLine("FAIL  Block II Validation did not reach PROG 77 completion.");
+        return 1;
+    }
+
+    Console.WriteLine($"{(errors == 0 ? "PASS" : "FAIL")}  Block II Validation reached PROG 77 with {errors} error prompts.");
+    return errors == 0 ? 0 : 1;
 }
 
 static void Write(AgcCpu cpu, int address, int value)
@@ -380,7 +551,7 @@ internal static class ComancheOrbitCheck
         WritePair(VrectCsm, 2, speed / 100, 7);
         WritePair(VcvCsm, 2, speed / 100, 7);
 
-        var dsky = new DskyPanel(cpu);
+        var dsky = new DskyPanel(cpu, DskySpacecraft.CommandModule);
         foreach (var key in new[] { DskyKey.Verb, DskyKey.Eight, DskyKey.Two, DskyKey.Enter })
         {
             dsky.Press(key);

@@ -73,7 +73,9 @@ public sealed partial class DskyFace(DskyDrawing drawing)
         Screw(600, 678);
 
         var lamps = panel.Lamps;
-        for (var row = 0; row < LeftLamps.Length; row++)
+        // Columbia's alarm indicator has five rows above a continuous faceplate (MIT 1006387).
+        var lampRows = panel.Spacecraft == DskySpacecraft.CommandModule ? 5 : LeftLamps.Length;
+        for (var row = 0; row < lampRows; row++)
         {
             var y = 43 + row * 52;
             Lamp(63, y, LeftLamps[row].Label, (lamps & LeftLamps[row].Lamp) != 0, false);

@@ -2,6 +2,12 @@ using Apollo11.Agc.Hardware;
 
 namespace Apollo11.Agc.Dsky;
 
+public enum DskySpacecraft
+{
+    LunarModule,
+    CommandModule
+}
+
 public enum DskyKey
 {
     Proceed = 0,
@@ -22,9 +28,13 @@ public enum DskyLamps
     ComputerActivity = 1 << 12
 }
 
-public sealed class DskyPanel(AgcCpu cpu)
+public sealed class DskyPanel(AgcCpu cpu, DskySpacecraft spacecraft)
 {
     private const int LampChannel = 0x09; // 11 octal
+
+    public DskyPanel(AgcCpu cpu) : this(cpu, DskySpacecraft.LunarModule) { }
+
+    public DskySpacecraft Spacecraft { get; } = spacecraft;
 
     internal bool DisplayPowered => !cpu.Standby;
 
@@ -55,8 +65,11 @@ public sealed class DskyPanel(AgcCpu cpu)
             if ((lampWord & 0x10) != 0 && FlashVisible) lamps |= DskyLamps.KeyRelease;
             if ((lampWord & 0x40) != 0 && FlashVisible) lamps |= DskyLamps.OperatorError;
             if ((relayWord & 0x08) != 0) lamps |= DskyLamps.NoAttitude;
-            if ((relayWord & 0x10) != 0) lamps |= DskyLamps.Altitude;
-            if ((relayWord & 0x04) != 0) lamps |= DskyLamps.Velocity;
+            if (Spacecraft == DskySpacecraft.LunarModule)
+            {
+                if ((relayWord & 0x10) != 0) lamps |= DskyLamps.Altitude;
+                if ((relayWord & 0x04) != 0) lamps |= DskyLamps.Velocity;
+            }
             if ((relayWord & 0x20) != 0) lamps |= DskyLamps.GimbalLock;
             if ((relayWord & 0x80) != 0) lamps |= DskyLamps.Tracker;
             if ((relayWord & 0x100) != 0) lamps |= DskyLamps.Program;

@@ -2,6 +2,7 @@ using Apollo11.Agc.Dsky;
 using Apollo11.Agc.Hardware;
 
 var ropePath = Path.Combine(AppContext.BaseDirectory, "roms", "Luminary099.bin");
+DskySpacecraft? dskySpacecraft = null;
 var cycles = 0L;
 var instructions = 0L;
 var noDsky = false;
@@ -13,6 +14,9 @@ for (var index = 0; index < args.Length; index++)
         case "--rope" when index + 1 < args.Length:
             ropePath = args[++index];
             break;
+        case "--dsky-panel" when index + 1 < args.Length && args[index + 1] is "cm" or "lm":
+            dskySpacecraft = args[++index] == "cm" ? DskySpacecraft.CommandModule : DskySpacecraft.LunarModule;
+            break;
         case "--cycles" when index + 1 < args.Length && long.TryParse(args[++index], out var requestedCycles):
             cycles = requestedCycles;
             break;
@@ -23,7 +27,7 @@ for (var index = 0; index < args.Length; index++)
             noDsky = true;
             break;
         case "--help":
-            Console.WriteLine("Usage: Apollo11.Agc [--rope PATH] [--instructions COUNT] [--cycles COUNT] [--dsky]");
+            Console.WriteLine("Usage: Apollo11.Agc [--rope PATH] [--dsky-panel cm|lm] [--instructions COUNT] [--cycles COUNT] [--nodsky]");
             return;
         default:
             Console.Error.WriteLine($"Unknown or incomplete argument: {args[index]}");
@@ -52,7 +56,9 @@ if (!noDsky)
 {
     try
     {
-        DskyWindow.Run(cpu);
+        var spacecraft = dskySpacecraft ?? (Path.GetFileName(ropePath).StartsWith("Comanche", StringComparison.OrdinalIgnoreCase)
+            ? DskySpacecraft.CommandModule : DskySpacecraft.LunarModule);
+        DskyWindow.Run(cpu, spacecraft);
     }
     catch (DllNotFoundException)
     {
@@ -73,7 +79,7 @@ if (!noDsky)
 }
 
 Console.WriteLine(
-    $"Luminary 099 loaded; cycles={cpu.CycleCount}, instructions={cpu.InstructionCount}, " +
+    $"{Path.GetFileName(ropePath)} loaded; cycles={cpu.CycleCount}, instructions={cpu.InstructionCount}, " +
     $"Z={Octal(cpu.Z, 4)}, A={Octal(cpu.A, 6)}, L={Octal(cpu.L, 6)}, Q={Octal(cpu.Q, 6)}, " +
     $"EB={Octal(cpu.Memory[AgcMemory.Eb], 6)}, FB={Octal(cpu.Memory[AgcMemory.Fb], 6)}, " +
     $"BB={Octal(cpu.Memory[AgcMemory.Bb], 6)}");

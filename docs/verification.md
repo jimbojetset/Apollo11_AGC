@@ -31,6 +31,29 @@ ordered sequence observed in yaAGC, then checks all 21 digits, the three
 register signs, and the annunciators. The relay comparison covers the word
 sequence. Full instruction and cycle-by-cycle comparison remains future work.
 
+## Block II instruction validation
+
+Virtual AGC's `Validation` rope reaches `PROG 77` with zero error prompts in
+both this emulator and yaAGC. The local tests cover signed zero and the unit
+quotient in `DV`, `MP` and `DV` reads of editing registers, and double-word
+transfers through L and Q.
+[Virtual AGC Validation source](https://github.com/virtualagc/virtualagc/tree/83c6e53624d667bc315f5ad9644df4bde7b2908d/Validation)
+
+With yaYUL built from the revision pinned by `scripts/build-luminary099.sh`,
+assemble `Validation.agc` from its source directory and run the replay from
+the project root.
+
+```sh
+# In virtualagc/Validation
+../yaYUL/yaYUL --parity --unpound-page Validation.agc
+
+# In the C# project root, with the path to the assembled rope
+dotnet run --project tests/Apollo11.Agc.Tests -- --block-ii-validation /path/to/virtualagc/Validation/Validation.agc.bin
+```
+
+The replay presses and releases PRO at each prompt. An error prompt or a
+failure to reach completion causes a nonzero exit status.
+
 ## Comanche orbit check
 
 This scenario accepts a yaYUL simulator rope for Comanche 051 (the initial
@@ -92,6 +115,11 @@ calculation.
   The display colors approximate the photographed hardware.
   [Smithsonian Block II DSKY](https://www.si.edu/object/nasm_A19720313000)
   · [Powered flight spare](https://www.youtube.com/watch?v=feRCZyLzAwA)
-- Apollo 11 lamp legends and colors follow the LM configuration.
+- Apollo 11 lamp legends and colors follow the LM and CM configurations.
+  The annunciator regression drives `PROG`, `ALT`, and `VEL` through the same
+  relay word on both panels. Eagle shows all three. Columbia shows `PROG`
+  and has a continuous blank faceplate below its five rows of annunciators.
+  [MIT alarm indicator drawing 1006387, sheet 3](https://www.ibiblio.org/apollo/SCDs/scd_1006387d.pdf#page=3)
+  · [Smithsonian photo of Columbia’s instrument panel](https://commons.wikimedia.org/wiki/File:Apollo_11_Command_Module_Columbia_instrument_panel_(NASM-SI-98-16043).jpg)
   [Apollo News Reference](https://www.nasa.gov/wp-content/uploads/static/history/alsj/LM08_Guidance-Navigation-Control_ppGN1-48.pdf)
   · [Virtual AGC's DSKY documentation](https://www.ibiblio.org/apollo/yaDSKY.html)

@@ -7,14 +7,14 @@
 
 <main>
     <header>
-        <h1>Apollo 11 DSKY</h1>
+        <h1>@PanelTitle</h1>
         <select id="rope" aria-label="Flight software" @bind:get="_ropeFile" @bind:set="ChangeRopeAsync" disabled="@(!_ready)">
             <option value="@Comanche">Comanche 055</option>
             <option value="@Luminary">Luminary 099</option>
         </select>
     </header>
 
-    <div id="panel" class="panel" role="group" aria-label="DSKY" style="aspect-ratio: @DskyFace.Width / @DskyFace.Height">
+    <div id="panel" class="panel" role="group" aria-label="@PanelTitle" style="aspect-ratio: @DskyFace.Width / @DskyFace.Height">
         <canvas id="face" width="@DskyFace.Width" height="@DskyFace.Height" aria-label="DSKY face and display"></canvas>
         @foreach (var (key, label, bounds) in DskyFace.KeyPositions)
         {
@@ -34,8 +34,10 @@
     private DotNetObjectReference<WebDsky>? _session;
     private IJSObjectReference? _browser;
     private string _ropeFile = Comanche;
+    private DskySpacecraft _spacecraft = DskySpacecraft.CommandModule;
     private bool _ready;
     private string? _status = "Loading Comanche 055…";
+    private string PanelTitle => _spacecraft == DskySpacecraft.CommandModule ? "Apollo 11 CM DSKY" : "Apollo 11 LM DSKY";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -44,7 +46,7 @@
 
         try
         {
-            _session = DotNetObjectReference.Create(new WebDsky(await BootAsync(_ropeFile)));
+            _session = DotNetObjectReference.Create(new WebDsky(await BootAsync(_ropeFile), _spacecraft));
             var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/dsky.js");
             _browser = await module.InvokeAsync<IJSObjectReference>("initialize", _session);
             _ready = true;
@@ -71,7 +73,9 @@
         {
             var cpu = await BootAsync(file);
             await _browser!.InvokeVoidAsync("resetInput");
-            _session!.Value.Reset(cpu);
+            var spacecraft = file == Comanche ? DskySpacecraft.CommandModule : DskySpacecraft.LunarModule;
+            _session!.Value.Reset(cpu, spacecraft);
+            _spacecraft = spacecraft;
             _status = null;
         }
         catch (Exception error) when (error is HttpRequestException or IOException or InvalidDataException or JSException)

@@ -1,8 +1,8 @@
 # Apollo 11 Block II AGC
 
-A .NET 10 emulator for the Apollo 11 Lunar Module's Block II Apollo Guidance
-Computer and DSKY. It runs the Luminary 099 flight rope with a real-time SDL2
-panel for the displays, annunciators, and keypad.
+A .NET 10 emulator for the Apollo 11 Block II Apollo Guidance Computer and
+DSKY. It runs Eagle's Luminary 099 and Columbia's Comanche flight software
+with a real-time SDL2 panel for the displays, annunciators, and keypad.
 
 The core models 15-bit one's-complement memory, the 16-bit A/L/Q central
 registers, erasable and fixed bank selection, the editing registers, the
@@ -34,7 +34,7 @@ as the flight software writes to the AGC channels.
 [Open the Apollo 11 DSKY on GitHub Pages](https://jimbojetset.github.io/Apollo11_AGC/).
 
 The `Web/` project runs Luminary 099 and Comanche 055 in Blazor WebAssembly.
-It shares the AGC core and Lunar Module panel geometry with the SDL app.
+It shares the AGC core and both spacecraft's panel layouts with the SDL app.
 Click or tap the keys or use the same keyboard shortcuts. The emulated clock
 pauses while the tab is hidden.
 
@@ -46,7 +46,9 @@ dotnet run --project Web/Apollo11.Agc.Web.csproj
 Open the local URL printed by the development server. The browser starts
 with Comanche 055. Use the selector above the panel to switch to Luminary
 099. Changing ropes starts a fresh AGC session and clears the displays and
-keypad state. `VERB 3 5 ENTR` runs the lamp test.
+keypad state. The LM panel shows `ALT` and `VEL` in the lower-right lamp
+positions. The CM panel has a smooth blank area below its five rows of
+annunciators. `VERB 3 5 ENTR` runs the lamp test.
 
 ```sh
 dotnet publish Web/Apollo11.Agc.Web.csproj -c Release
@@ -76,7 +78,9 @@ cp artifacts/virtualagc/Comanche051/MAIN.agc.bin artifacts/Comanche051.bin
 ```
 
 Replace `Comanche051` with `Comanche055` in these examples to try the version
-flown on Apollo 11.
+flown on Apollo 11. SDL selects the CM panel for filenames starting with
+`Comanche`. Use `--dsky-panel cm` or `--dsky-panel lm` to choose the panel
+explicitly when loading a rope with a different filename.
 
 ### Load the test state vector
 
@@ -116,7 +120,8 @@ At `V21 N02`, key `VERB 33 ENTR` to store the vector. PROG returns to `00`.
 
 The screenshot shows R1 `+02159` (**215.9 nautical miles apogee**) and R2
 `+01081` (**108.1 nautical miles perigee**). R3 `−59 59` indicates that this
-orbit never crosses the 300,000-foot reference altitude.
+orbit never crosses the 300,000-foot reference altitude. This capture predates
+the Columbia panel layout.
 [Colossus R30 listing](https://www.ibiblio.org/apollo/listings/Comanche055/R30.agc.html)
 
 ![Comanche DSKY showing V16 N44, an apogee of 215.9 nautical miles, a perigee of 108.1 nautical miles, and −59 59 in R3](docs/dsky-orbit-result.png)

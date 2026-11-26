@@ -500,7 +500,7 @@ public sealed class AgcCpu
 
         var high = ReadOperand(address);
         WriteOperand(address, address < 3 ? Memory[AgcMemory.L] : AgcWord.OverflowCorrect(Memory[AgcMemory.L]));
-        Memory[AgcMemory.L] = address < 3 ? high : AgcWord.SignExtend(high);
+        Memory[AgcMemory.L] = AgcWord.SignExtend(address < 3 ? AgcWord.OverflowCorrect(high) : high);
 
         var lowAddress = (address - 1) & 0xfff;
         var low = ReadOperand(lowAddress);
@@ -596,22 +596,24 @@ public sealed class AgcCpu
         }
 
         var low = SignExtendedOperand(address);
-        var high = SignExtendedOperand((address - 1) & 0xfff);
         Memory[AgcMemory.L] = complement ? ~low & AgcWord.RegisterMask : low;
         Memory[AgcMemory.L] = AgcWord.SignExtend(AgcWord.OverflowCorrect(Memory[AgcMemory.L]));
+
+        // DCA L and DCS L read L after the first transfer from Q has updated it.
+        var high = SignExtendedOperand((address - 1) & 0xfff);
         Memory[AgcMemory.A] = complement ? ~high & AgcWord.RegisterMask : high;
     }
 
     private void ExecuteMultiply(int address)
     {
         var leftWord = AgcWord.OverflowCorrect(Memory[AgcMemory.A]);
-        var rightWord = address < 3 ? AgcWord.OverflowCorrect(ReadOperand(address)) : ReadOperandAndEdit(address);
+        var rightWord = address < 3 ? AgcWord.OverflowCorrect(ReadOperand(address)) : ReadOperand(address);
         var left = AgcWord.ToInt32(leftWord);
         var right = AgcWord.ToInt32(rightWord);
 
         if (left == 0 || right == 0)
         {
-            var negative = ((leftWord ^ rightWord) & AgcWord.SignBit) != 0;
+            var negative = right != 0 && ((leftWord ^ rightWord) & AgcWord.SignBit) != 0;
             var zero = negative ? AgcWord.NegativeZero : 0;
             Memory[AgcMemory.A] = AgcWord.SignExtend(zero);
             Memory[AgcMemory.L] = AgcWord.SignExtend(zero);
@@ -625,20 +627,36 @@ public sealed class AgcCpu
 
     private void ExecuteDivide(int address)
     {
-        var divisorWord = address < 3 ? AgcWord.OverflowCorrect(ReadOperand(address)) : ReadOperandAndEdit(address);
+        var divisorWord = address < 3 ? AgcWord.OverflowCorrect(ReadOperand(address)) : ReadOperand(address);
         var divisor = AgcWord.ToInt32(divisorWord);
-        var dividend = ToDoubleLength(AgcWord.OverflowCorrect(Memory[AgcMemory.A]), AgcWord.OverflowCorrect(Memory[AgcMemory.L]));
-        if (divisor == 0 || Math.Abs(dividend) >= (long)Math.Abs(divisor) << 14)
+        var low = AgcWord.OverflowCorrect(Memory[AgcMemory.L]);
+        var dividend = ToDoubleLength(AgcWord.OverflowCorrect(Memory[AgcMemory.A]), low);
+
+        // For a zero dividend, the sign of L controls the quotient sign and L is preserved.
+        var negativeDividend = dividend < 0 || (dividend == 0 && (low & AgcWord.SignBit) != 0);
+        var negativeQuotient = negativeDividend != ((divisorWord & AgcWord.SignBit) != 0);
+        if (dividend == 0 && divisor != 0)
         {
-            // The hardware's illegal-division result is deliberately deterministic.
-            Memory[AgcMemory.A] = AgcWord.SignExtend((dividend < 0) == (divisor < 0) ? 0x3fff : 0x4000);
+            Memory[AgcMemory.A] = negativeQuotient ? AgcWord.RegisterMask : 0;
+            return;
+        }
+
+        var quotientLimit = (long)Math.Abs(divisor) << 14;
+        if (Math.Abs(dividend) >= quotientLimit)
+        {
+            Memory[AgcMemory.A] = AgcWord.SignExtend(negativeQuotient ? 0x4000 : 0x3fff);
+            // At exactly one in AGC fractional units, L receives the normalized high word.
+            if (quotientLimit != 0 && Math.Abs(dividend) == quotientLimit)
+                Memory[AgcMemory.L] = AgcWord.SignExtend(AgcWord.FromInt32((int)(dividend / (1 << 14))));
             return;
         }
 
         var quotient = dividend / divisor;
         var remainder = dividend % divisor;
         Memory[AgcMemory.A] = AgcWord.SignExtend(AgcWord.FromInt32((int)quotient));
-        Memory[AgcMemory.L] = AgcWord.SignExtend(AgcWord.FromInt32((int)remainder));
+        Memory[AgcMemory.L] = remainder == 0 && negativeDividend
+            ? AgcWord.RegisterMask
+            : AgcWord.SignExtend(AgcWord.FromInt32((int)remainder));
     }
 
     private void Resume()

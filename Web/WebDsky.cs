@@ -19,18 +19,18 @@ internal sealed class WebDsky
     private bool _renderedStandby;
     private DskyFace? _face;
 
-    public WebDsky(AgcCpu cpu)
+    public WebDsky(AgcCpu cpu, DskySpacecraft spacecraft)
     {
         _cpu = cpu;
-        _panel = new DskyPanel(cpu);
+        _panel = new DskyPanel(cpu, spacecraft);
         _cycleTarget = cpu.CycleCount;
     }
 
-    public void Reset(AgcCpu cpu)
+    public void Reset(AgcCpu cpu, DskySpacecraft spacecraft)
     {
         ReleaseKeys();
         _cpu = cpu;
-        _panel = new DskyPanel(cpu);
+        _panel = new DskyPanel(cpu, spacecraft);
         _cycleTarget = cpu.CycleCount;
         _nextKeyCycle = cpu.CycleCount;
         _face = null;
