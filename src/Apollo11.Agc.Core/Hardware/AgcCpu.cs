@@ -97,6 +97,8 @@ public sealed class AgcCpu
         _interruptRequests[priority] = true;
     }
 
+    public void SignalDownlinkEndPulse() => RequestInterrupt(8);
+
     public void PressDskyKey(int code)
     {
         Channels.SetInput(0x0d, (Channels.Get(0x0d) & ~0x1f) | (code & 0x1f)); // Channel 15.
@@ -711,7 +713,7 @@ public sealed class AgcCpu
         CycleCount++;
         if (_downruptCycle >= 0 && CycleCount >= _downruptCycle)
         {
-            RequestInterrupt(8);
+            SignalDownlinkEndPulse();
             _downruptCycle = -1;
         }
         _scaler += 3;

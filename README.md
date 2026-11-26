@@ -62,10 +62,11 @@ AGC clock. To send the preset again after a successful transfer, start a
 fresh Comanche session by reloading the page or switching ropes.
 
 The **I/O Monitor** shows the uplink and DSKY channel words. **Telemetry**
-shows the latest raw downlink words on octal channels 34 and 35. Switching
-views or hiding Systems leaves the current transfer running. Changing the
-flight software starts a fresh session. The browser pauses the emulator and
-transfer while its tab is hidden.
+shows the latest raw downlink words on octal channels 34 and 35 and a running
+count of received words. The stream starts at boot, and `00000` is a valid
+word. Switching views or hiding Systems leaves the current transfer running.
+Changing the flight software starts a fresh session. The browser pauses the
+emulator and transfer while its tab is hidden.
 
 ```sh
 dotnet publish Web/Apollo11.Agc.Web.csproj -c Release

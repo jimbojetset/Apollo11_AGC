@@ -27,6 +27,7 @@ internal sealed class WebDsky
     public ComancheOrbitUplink OrbitUplink { get; private set; }
     public int? DownlinkFirstWord { get; private set; }
     public int? DownlinkSecondWord { get; private set; }
+    public long DownlinkWordCount { get; private set; }
     public bool UplinkActivity => _panel.Lamps.HasFlag(DskyLamps.UplinkActivity);
 
     public OrbitReadout? OrbitResult
@@ -73,6 +74,7 @@ internal sealed class WebDsky
         _cpu.Channels.Output += RecordDownlink;
         DownlinkFirstWord = null;
         DownlinkSecondWord = null;
+        DownlinkWordCount = 0;
         _cycleTarget = cpu.CycleCount;
         _nextKeyCycle = cpu.CycleCount;
         _nextSystemsRefresh = cpu.CycleCount;
@@ -175,6 +177,10 @@ internal sealed class WebDsky
             DownlinkFirstWord = value;
         else if (channel == DownlinkSecondChannel)
             DownlinkSecondWord = value;
+        else
+            return;
+
+        DownlinkWordCount++;
     }
 
     private bool TryReadHeight(int register, out OrbitHeight height)

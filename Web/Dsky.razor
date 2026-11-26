@@ -115,10 +115,11 @@
                         <div class="system-title"><h2 id="telemetry-title">Telemetry</h2></div>
                         <dl class="channel-values">
                             <div><dt>Source</dt><dd>@(_spacecraft == DskySpacecraft.CommandModule ? "Columbia CMC" : "Eagle LGC")</dd></div>
+                            <div><dt>Words received</dt><dd>@(Session?.DownlinkWordCount ?? 0)</dd></div>
                             <div><dt>Downlink channel <code>034</code></dt><dd><code>@Octal(Session?.DownlinkFirstWord)</code></dd></div>
                             <div><dt>Downlink channel <code>035</code></dt><dd><code>@Octal(Session?.DownlinkSecondWord)</code></dd></div>
                         </dl>
-                        <p class="system-feedback">@(Session?.DownlinkFirstWord is null && Session?.DownlinkSecondWord is null
+                        <p class="system-feedback">@((Session?.DownlinkWordCount ?? 0) == 0
                             ? "Waiting for AGC downlink words." : "Latest raw downlink words in octal.")</p>
                     </section>
                     break;
@@ -262,6 +263,8 @@
         var cpu = new AgcCpu();
         using var stream = new MemoryStream(rope);
         RopeImage.Load(stream, cpu.Memory);
+        // Subsequent end pulses are scheduled after the flight software writes each pair.
+        cpu.SignalDownlinkEndPulse();
         return cpu;
     }
 }

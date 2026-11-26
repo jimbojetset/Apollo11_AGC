@@ -24,6 +24,7 @@ internal static class Program
     ("double-word transfers through L and Q", DoubleRegisterTransfers),
     ("extracode I/O", ExtracodeIo),
     ("DOWNRUPT timing", DownruptTiming),
+    ("Comanche and Luminary downlink startup", FlightRopesDownlink),
     ("priority interrupt and RESUME", InterruptAndResume),
     ("timer scaler", TimerScaler),
     ("Luminary 099 rope", LuminaryRope),
@@ -260,6 +261,29 @@ static void DownruptTiming()
     True(cpu.InInterrupt, "DOWNRUPT did not enter its interrupt sequence.");
 }
 
+static void FlightRopesDownlink()
+{
+    foreach (var rope in new[] { "Comanche055.bin", "Luminary099.bin" })
+    {
+        var cpu = new AgcCpu();
+        RopeImage.Load(Path.Combine(AppContext.BaseDirectory, "roms", rope), cpu.Memory);
+        var words = new List<(int Channel, int Word)>();
+        cpu.Channels.Output += (channel, word) =>
+        {
+            if (channel is 0x1c or 0x1d)
+                words.Add((channel, word));
+        };
+
+        cpu.SignalDownlinkEndPulse();
+        cpu.Run(AgcCpu.MachineCyclesPerSecond);
+
+        True(words.Count >= 90, $"{rope} did not sustain the downlink after its initial pulse.");
+        // Both ropes send these first two words at startup in yaAGC as well.
+        Equal((0x1c, Convert.ToInt32("77777", 8)), words[0]);
+        Equal((0x1d, Convert.ToInt32("77340", 8)), words[1]);
+    }
+}
+
 static void InterruptAndResume()
 {
     var cpu = new AgcCpu();
@@ -297,6 +321,7 @@ static void LuminaryRope()
 
     var cpu = new AgcCpu();
     RopeImage.Load(path, cpu.Memory);
+    cpu.SignalDownlinkEndPulse();
     True(cpu.Memory.CheckFixedParity, "Luminary rope was not assembled with parity.");
     Equal(4, cpu.Memory[0x800]);
     True(!cpu.Memory.FixedParityFailure, "Luminary's first rope word failed odd parity.");
@@ -390,6 +415,7 @@ static void LuminaryLampTest()
 {
     var cpu = new AgcCpu();
     RopeImage.Load(Path.Combine(AppContext.BaseDirectory, "roms", "Luminary099.bin"), cpu.Memory);
+    cpu.SignalDownlinkEndPulse();
     var panel = new DskyPanel(cpu);
     var relayWords = new List<int>();
     cpu.Channels.Output += (channel, value) =>
@@ -420,6 +446,7 @@ static void ComancheDigitalUplink()
 {
     var cpu = new AgcCpu();
     RopeImage.Load(Path.Combine(AppContext.BaseDirectory, "roms", "Comanche055.bin"), cpu.Memory);
+    cpu.SignalDownlinkEndPulse();
     var dsky = new DskyPanel(cpu, DskySpacecraft.CommandModule);
     var uplink = new ComancheOrbitUplink(cpu, dsky);
     cpu.Run(150_000);

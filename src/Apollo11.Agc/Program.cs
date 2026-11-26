@@ -38,6 +38,8 @@ for (var index = 0; index < args.Length; index++)
 
 var cpu = new AgcCpu();
 RopeImage.Load(ropePath, cpu.Memory);
+// The telemetry programmer's first end pulse starts the flight rope's downlist.
+cpu.SignalDownlinkEndPulse();
 if (noDsky)
 {
     cpu.Channels.Output += (channel, value) =>
