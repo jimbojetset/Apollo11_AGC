@@ -2,4 +2,7 @@
   <Project Path="src/Apollo11.Agc/Apollo11.Agc.csproj" />
   <Project Path="src/Apollo11.Agc.Core/Apollo11.Agc.Core.csproj" />
   <Project Path="tests/Apollo11.Agc.Tests/Apollo11.Agc.Tests.csproj" />
+  <Project Path="Web/Apollo11.Agc.Web.csproj">
+    <Build Project="false" />
+  </Project>
 </Solution>

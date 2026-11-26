@@ -54,8 +54,9 @@ dotnet publish Web/Apollo11.Agc.Web.csproj -c Release
 
 The published site is in `Web/bin/Release/net10.0/publish/wwwroot`. The GitHub
 Pages workflow builds and uploads it when the repository's Pages source is
-set to **GitHub Actions**. `Apollo11.Agc.slnx` builds the desktop app and its
-tests with the regular .NET SDK.
+set to **GitHub Actions**. `Apollo11.Agc.slnx` includes the web project for
+editor tooling and builds the desktop app and its tests by default. Use the
+web project commands above to build or publish the browser app.
 
 ## Calculate an orbit on the DSKY
 
