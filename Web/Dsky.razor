@@ -9,8 +9,8 @@
     <header>
         <h1>Apollo 11 DSKY</h1>
         <select id="rope" aria-label="Flight software" @bind:get="_ropeFile" @bind:set="ChangeRopeAsync" disabled="@(!_ready)">
-            <option value="@Luminary">Luminary 099</option>
             <option value="@Comanche">Comanche 055</option>
+            <option value="@Luminary">Luminary 099</option>
         </select>
     </header>
 
@@ -33,9 +33,9 @@
     private const string Comanche = "Comanche055.bin";
     private DotNetObjectReference<WebDsky>? _session;
     private IJSObjectReference? _browser;
-    private string _ropeFile = Luminary;
+    private string _ropeFile = Comanche;
     private bool _ready;
-    private string? _status = "Loading Luminary 099…";
+    private string? _status = "Loading Comanche 055…";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

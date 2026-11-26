@@ -43,9 +43,10 @@ dotnet workload install wasm-tools --source https://api.nuget.org/v3/index.json
 dotnet run --project Web/Apollo11.Agc.Web.csproj
 ```
 
-Open the local URL printed by the development server. Select the flight
-software above the panel. Changing ropes starts a fresh AGC session and
-clears the displays and keypad state. `VERB 3 5 ENTR` runs the lamp test.
+Open the local URL printed by the development server. The browser starts
+with Comanche 055. Use the selector above the panel to switch to Luminary
+099. Changing ropes starts a fresh AGC session and clears the displays and
+keypad state. `VERB 3 5 ENTR` runs the lamp test.
 
 ```sh
 dotnet publish Web/Apollo11.Agc.Web.csproj -c Release
