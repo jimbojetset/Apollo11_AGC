@@ -30,7 +30,8 @@ internal static class Program
     ("DSKY display relays and flashing", DskyRelays),
     ("DSKY spacecraft annunciators", DskySpacecraftAnnunciators),
     ("DSKY keypad and standby wiring", DskyKeypad),
-    ("Luminary 099 DSKY lamp test", LuminaryLampTest)
+    ("Luminary 099 DSKY lamp test", LuminaryLampTest),
+    ("Comanche 055 state vector via digital uplink", ComancheDigitalUplink)
         };
 
         var failed = 0;
@@ -331,6 +332,7 @@ static void DskyRelays()
     Equal('1', panel.Digit(0));
     Equal('2', panel.Digit(1));
     Equal(' ', panel.Digit(2));
+    Equal('3', panel.LatchedDigit(2));
     Equal('5', panel.Digit(15));
     Equal('6', panel.Digit(16));
     Equal('+', panel.Sign(0));
@@ -412,6 +414,70 @@ static void LuminaryLampTest()
     Equal('+', panel.Sign(2));
     True(panel.Lamps.HasFlag(DskyLamps.Standby | DskyLamps.Restart | DskyLamps.Altitude | DskyLamps.Velocity),
         "Luminary's V35 lamp test did not light STBY, RESTART, ALT and VEL.");
+}
+
+static void ComancheDigitalUplink()
+{
+    var cpu = new AgcCpu();
+    RopeImage.Load(Path.Combine(AppContext.BaseDirectory, "roms", "Comanche055.bin"), cpu.Memory);
+    var dsky = new DskyPanel(cpu, DskySpacecraft.CommandModule);
+    var uplink = new ComancheOrbitUplink(cpu, dsky);
+    cpu.Run(150_000);
+    True(!uplink.TryStart(), "The cockpit must enter P00 before starting the exercise.");
+    const int keyInterval = AgcCpu.MachineCyclesPerSecond / 5;
+    Press(DskyKey.Reset, DskyKey.Verb, DskyKey.Three, DskyKey.Seven, DskyKey.Enter,
+        DskyKey.Zero, DskyKey.Zero, DskyKey.Enter);
+    True(uplink.TryStart(), "Ground Uplink could not start in P00.");
+    True(!uplink.TryStart(), "A second request interrupted the active uplink.");
+    var activitySeen = false;
+    var program27Seen = false;
+    var deadline = cpu.CycleCount + 28L * AgcCpu.MachineCyclesPerSecond;
+    while (uplink.IsTransmitting && cpu.CycleCount < deadline)
+    {
+        uplink.RunUntil(cpu.CycleCount + keyInterval);
+        activitySeen |= dsky.Lamps.HasFlag(DskyLamps.UplinkActivity);
+        program27Seen |= dsky.Digit(0) == '2' && dsky.Digit(1) == '7';
+    }
+    True(activitySeen && program27Seen, "The rope did not show uplink activity and Program 27.");
+    True(uplink.IsComplete, uplink.Error ?? "Comanche did not acknowledge the vector in time.");
+    True(!uplink.CanStart && !uplink.TryStart(), "A completed uplink must stay locked for this session.");
+    Equal(ComancheOrbitUplink.TotalWords, uplink.SentWords);
+    True(!dsky.Lamps.HasFlag(DskyLamps.UplinkActivity), "The rope left UPLINK ACTY lit after verification.");
+
+    // P27 stores the documented position and velocity words in the CSM state vector.
+    Equal(Octal("00310"), cpu.Memory.ReadErasable(3, Octal("0102")));
+    Equal(Octal("23215"), cpu.Memory.ReadErasable(3, Octal("0103")));
+    Equal(Octal("23471"), cpu.Memory.ReadErasable(3, Octal("0112")));
+    Equal(Octal("35606"), cpu.Memory.ReadErasable(3, Octal("0113")));
+
+    Press(DskyKey.Verb, DskyKey.Eight, DskyKey.Two, DskyKey.Enter);
+    cpu.Run(100_000);
+    Equal("0000200001", Digits(6, 10));
+    dsky.Press(DskyKey.Proceed);
+    cpu.Run(keyInterval);
+    dsky.Release(DskyKey.Proceed);
+    deadline = cpu.CycleCount + 10L * AgcCpu.MachineCyclesPerSecond;
+    while (cpu.CycleCount < deadline && (Digits(2, 4) != "1644" || Digits(16, 5) != "59 59"))
+        cpu.Run(keyInterval);
+    Equal("1644", Digits(2, 4));
+    // The 0.2 s character spacing advances the propagation epoch during P27.
+    True(int.TryParse(Digits(6, 5), out var apogee) && Math.Abs(apogee - 2160) <= 2,
+        $"Unexpected apogee after uplink: {Digits(6, 5)}.");
+    True(int.TryParse(Digits(11, 5), out var perigee) && Math.Abs(perigee - 1080) <= 2,
+        $"Unexpected perigee after uplink: {Digits(11, 5)}.");
+    Equal(('+', '+', '-', "59 59"), (dsky.Sign(0), dsky.Sign(1), dsky.Sign(2), Digits(16, 5)));
+
+    void Press(params DskyKey[] keys)
+    {
+        foreach (var key in keys)
+        {
+            dsky.Press(key);
+            cpu.Run(keyInterval);
+        }
+    }
+
+    string Digits(int start, int count) => string.Concat(Enumerable.Range(start, count).Select(dsky.Digit));
+    static int Octal(string value) => Convert.ToInt32(value, 8);
 }
 
 static int RunBlockIiValidation(string ropePath)

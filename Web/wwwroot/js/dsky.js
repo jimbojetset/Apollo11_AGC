@@ -111,9 +111,10 @@ export function initialize(session) {
     }
 
     window.addEventListener("keydown", event => {
-        if (event.altKey || event.ctrlKey || event.metaKey || event.target.closest?.("#rope")) return;
+        if (event.altKey || event.ctrlKey || event.metaKey) return;
         const key = event.key.toLowerCase();
         const focused = event.target.closest?.("#panel .key");
+        if (!focused && event.target.closest?.("button, select, input, textarea, a, [contenteditable]")) return;
         const button = focused && (key === "enter" || key === " ")
             ? focused : buttons.get(digits[key] ?? shortcuts.get(key));
         if (!button || button.disabled) return;

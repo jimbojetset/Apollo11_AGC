@@ -28,6 +28,7 @@ public sealed class AgcMemory
     public const int Time4 = 0x17;
     public const int Time5 = 0x18;
     public const int Time6 = 0x19;
+    public const int Inlink = 0x25; // 0045 octal
 
     private readonly ushort[][] _erasable = CreateBanks(ErasableBankCount, ErasableBankSize);
     private readonly ushort[][] _fixed = CreateBanks(FixedBankCount, FixedBankSize);

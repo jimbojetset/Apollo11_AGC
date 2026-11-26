@@ -75,6 +75,17 @@ reference altitude.
 [Comanche 051 R30 listing](https://www.ibiblio.org/apollo/listings/Comanche051/R30.agc.html)
 · [Comanche 055 R30 listing](https://www.ibiblio.org/apollo/listings/Comanche055/R30.agc.html)
 
+The browser Ground Uplink and the `Comanche 055 state vector via digital
+uplink` regression exercise Program 27 before running R30. The ground preset
+sends encoded characters at 0.2-second intervals. Each received word enters
+`INLINK` and raises `UPRUPT`, following the Virtual AGC channel 173 convention.
+Comanche verifies and writes the vector in P27. The regression checks the
+stored words, the `UPLINK ACTY` transition, and the `V16 N44` readout. The
+published web build and a yaAGC replay both displayed `+02161` and `+01080`
+for the tested sequence. The readout varies with the time of `PRO`.
+[Virtual AGC uplink](https://www.ibiblio.org/apollo/yaTelemetry.html)
+· [Comanche Program 27](https://www.ibiblio.org/apollo/listings/Comanche055/UPDATE_PROGRAM.agc.html)
+
 `DV BUF` at octal `00,3436` in `SQRTSUB` divides a double-precision number
 whose high word is positive and whose low word is negative. The previous CPU
 treated the low word as unsigned, adding 16,383 integer counts to this

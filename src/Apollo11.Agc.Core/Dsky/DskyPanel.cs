@@ -86,6 +86,12 @@ public sealed class DskyPanel(AgcCpu cpu, DskySpacecraft spacecraft)
             (cpu.Channels.Get(LampChannel) & 0x20) != 0))
             return ' ';
 
+        return LatchedDigit(position);
+    }
+
+    // The relays retain the digits while the DSKY blanks a flashing VERB or NOUN.
+    public char LatchedDigit(int position)
+    {
         var (row, left) = DigitRelays[position];
         var word = cpu.Channels.GetLatchedRelayRow(row);
         return ((word >> (left ? 5 : 0)) & 31) switch

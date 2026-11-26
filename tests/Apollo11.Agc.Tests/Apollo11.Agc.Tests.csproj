@@ -16,6 +16,9 @@
     <Content Include="../../roms/Luminary099.bin" Link="roms/Luminary099.bin">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="../../artifacts/Comanche055.bin" Link="roms/Comanche055.bin">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

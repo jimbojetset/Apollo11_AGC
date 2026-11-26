@@ -50,6 +50,23 @@ keypad state. The LM panel shows `ALT` and `VEL` in the lower-right lamp
 positions. The CM panel has a smooth blank area below its five rows of
 annunciators. `VERB 3 5 ENTR` runs the lamp test.
 
+With **Comanche 055**, use **Systems → Ground Uplink** to send the Earth
+orbit test vector. On the DSKY, press `RSET`, then enter `VERB 37 ENTR` and
+`00 ENTR` to put Comanche in P00. Click **Send state vector** and wait for
+**Complete**. Comanche runs Program 27 and drives `UPLINK ACTY` during the
+transfer, which takes about 22 seconds. Then enter `VERB 82 ENTR` and press
+and release `PRO` to display `V16 N44`. Ground Uplink then compares the DSKY
+heights with the kilometre targets and explains the third register. Expect
+about 216 nmi apogee and 108 nmi perigee. The last digit can vary with the
+AGC clock. To send the preset again after a successful transfer, start a
+fresh Comanche session by reloading the page or switching ropes.
+
+The **I/O Monitor** shows the uplink and DSKY channel words. **Telemetry**
+shows the latest raw downlink words on octal channels 34 and 35. Switching
+views or hiding Systems leaves the current transfer running. Changing the
+flight software starts a fresh session. The browser pauses the emulator and
+transfer while its tab is hidden.
+
 ```sh
 dotnet publish Web/Apollo11.Agc.Web.csproj -c Release
 ```

@@ -2,6 +2,7 @@ namespace Apollo11.Agc.Hardware;
 
 public sealed class AgcCpu
 {
+    public const int UplinkInputChannel = 0x7b; // Virtual AGC channel 173 octal.
     public const int MachineCyclesPerSecond = 1024000 / 12;
 
     private static readonly int[] BasicCycles =
@@ -102,6 +103,19 @@ public sealed class AgcCpu
         if (code == 18)
             RestartLight = false; // RSET also clears the RESTART latch on a hardwired line.
         RequestInterrupt(5);
+    }
+
+    public bool TryReceiveUplinkWord(int word)
+    {
+        const int uprupt = 7;
+        if (Standby || _interruptRequests[uprupt] || Memory[AgcMemory.Inlink] != 0)
+            return false;
+
+        // The uplink receiver presents a complete word in INLINK and raises UPRUPT.
+        Channels.SetInput(UplinkInputChannel, word);
+        Memory[AgcMemory.Inlink] = word;
+        RequestInterrupt(uprupt);
+        return true;
     }
 
     public void SetDskyProceed(bool pressed)
