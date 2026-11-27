@@ -40,7 +40,7 @@
                 <label for="system-picker">Systems</label>
                 <select id="system-picker" @bind="_system">
                     <option value="@SystemPanel.GroundUplink">Ground Uplink</option>
-                    <option value="@SystemPanel.Telemetry">Telemetry</option>
+                    <option value="@SystemPanel.Telemetry">Mission Control Telemetry</option>
                     <option value="@SystemPanel.IoMonitor">I/O Monitor</option>
                 </select>
             </header>
@@ -111,17 +111,8 @@
                     </section>
                     break;
                 case SystemPanel.Telemetry:
-                    <section class="system-content" aria-labelledby="telemetry-title">
-                        <div class="system-title"><h2 id="telemetry-title">Telemetry</h2></div>
-                        <dl class="channel-values">
-                            <div><dt>Source</dt><dd>@(_spacecraft == DskySpacecraft.CommandModule ? "Columbia CMC" : "Eagle LGC")</dd></div>
-                            <div><dt>Words received</dt><dd>@(Session?.DownlinkWordCount ?? 0)</dd></div>
-                            <div><dt>Downlink channel <code>034</code></dt><dd><code>@Octal(Session?.DownlinkFirstWord)</code></dd></div>
-                            <div><dt>Downlink channel <code>035</code></dt><dd><code>@Octal(Session?.DownlinkSecondWord)</code></dd></div>
-                        </dl>
-                        <p class="system-feedback">@((Session?.DownlinkWordCount ?? 0) == 0
-                            ? "Waiting for AGC downlink words." : "Latest raw downlink words in octal.")</p>
-                    </section>
+                    <MissionControlTelemetry @key="_spacecraft" Spacecraft="_spacecraft"
+                        Downlink="@(_ready ? Session?.Downlink : null)" OnHold="@(_ready && Session?.DownlinkOnHold == true)" />
                     break;
                 case SystemPanel.IoMonitor:
                     <section class="system-content" aria-labelledby="io-monitor-title">

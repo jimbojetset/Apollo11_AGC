@@ -6,9 +6,6 @@ namespace Apollo11.Agc.Web;
 
 internal sealed class WebDsky
 {
-    public const int DownlinkFirstChannel = 0x1c; // 34 octal
-    public const int DownlinkSecondChannel = 0x1d; // 35 octal
-
     private readonly DskyCanvas _canvas = new();
     private readonly Queue<DskyKey> _pendingKeys = new();
     private readonly HashSet<DskyKey> _heldKeys = [];
@@ -25,9 +22,9 @@ internal sealed class WebDsky
 
     public event Action? SystemsUpdated;
     public ComancheOrbitUplink OrbitUplink { get; private set; }
-    public int? DownlinkFirstWord { get; private set; }
-    public int? DownlinkSecondWord { get; private set; }
-    public long DownlinkWordCount { get; private set; }
+    public AgcDownlink Downlink { get; private set; } = new();
+    public bool DownlinkOnHold => _cpu.Standby ||
+        (Downlink.Latest is { } list && _cpu.CycleCount - list.ReceivedCycle > 3L * AgcCpu.MachineCyclesPerSecond);
     public bool UplinkActivity => _panel.Lamps.HasFlag(DskyLamps.UplinkActivity);
 
     public OrbitReadout? OrbitResult
@@ -71,10 +68,8 @@ internal sealed class WebDsky
         _cpu = cpu;
         _panel = new DskyPanel(cpu, spacecraft);
         OrbitUplink = new ComancheOrbitUplink(cpu, _panel);
+        Downlink = new AgcDownlink();
         _cpu.Channels.Output += RecordDownlink;
-        DownlinkFirstWord = null;
-        DownlinkSecondWord = null;
-        DownlinkWordCount = 0;
         _cycleTarget = cpu.CycleCount;
         _nextKeyCycle = cpu.CycleCount;
         _nextSystemsRefresh = cpu.CycleCount;
@@ -171,17 +166,7 @@ internal sealed class WebDsky
         return _canvas.ReadFrame();
     }
 
-    private void RecordDownlink(int channel, int value)
-    {
-        if (channel == DownlinkFirstChannel)
-            DownlinkFirstWord = value;
-        else if (channel == DownlinkSecondChannel)
-            DownlinkSecondWord = value;
-        else
-            return;
-
-        DownlinkWordCount++;
-    }
+    private void RecordDownlink(int channel, int value) => Downlink.Record(channel, value, _cpu.CycleCount);
 
     private bool TryReadHeight(int register, out OrbitHeight height)
     {

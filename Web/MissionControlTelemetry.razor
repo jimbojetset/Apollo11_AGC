@@ -1,0 +1,157 @@
+@using System.Globalization
+@using Apollo11.Agc.Dsky
+@using Apollo11.Agc.Hardware
+@using Microsoft.AspNetCore.Components.Web
+
+@{
+    var list = Downlink?.Latest;
+    var isCommandModule = Spacecraft == DskySpacecraft.CommandModule;
+    var state = OnHold ? "Hold" : list is null ? "Acquiring" : "Live";
+    var vectorStart = isCommandModule ? 2 : 52;
+}
+
+<section class="system-content" aria-labelledby="telemetry-title">
+    <div class="telemetry-console">
+        <div class="telemetry-nameplate">
+            <h2 id="telemetry-title">Mission Control</h2>
+            <span class="telemetry-signal" data-state="@state" role="status">@state</span>
+        </div>
+        <div class="telemetry-bezel">
+            <div class="telemetry-crt">
+                <header class="telemetry-screen-header">
+                    <h3>@(isCommandModule ? "Columbia CMC" : "Eagle LGC")</h3>
+                    <span>D/TV</span>
+                </header>
+                @if (list is null)
+                {
+                    <p class="telemetry-waiting">Waiting for a complete AGC downlist</p>
+                }
+                else
+                {
+                    <div class="telemetry-list-title">
+                        <span>@DownlistName(list.Id, isCommandModule)</span>
+                        <code>@Octal(list.Id)</code>
+                    </div>
+                    @if (list.IsMemoryDump)
+                    {
+                        <p class="telemetry-waiting">Erasable memory data in Raw downlink</p>
+                    }
+                    else
+                    {
+                        <dl class="telemetry-clock">
+                            <dt>AGC clock</dt>
+                            <dd>@Clock(list.DoublePrecision(51))</dd>
+                        </dl>
+                        @if (isCommandModule && list.Id == AgcDownlink.CoastAndAlign)
+                        {
+                            <h4>R30 orbit heights</h4>
+                            <dl class="telemetry-readouts">
+                                <dt>Apogee</dt><dd>@Number(list.DoublePrecision(28) * 2 / MetresPerNauticalMile, "0.000")</dd><dd class="telemetry-unit">nmi</dd>
+                                <dt>Perigee</dt><dd>@Number(list.DoublePrecision(29) * 2 / MetresPerNauticalMile, "0.000")</dd><dd class="telemetry-unit">nmi</dd>
+                            </dl>
+                        }
+                        @if (!isCommandModule && list.Id == AgcDownlink.Program22OrDescentAndAscent)
+                        {
+                            <h4>Landing radar</h4>
+                            <dl class="telemetry-readouts">
+                                <dt>Slant range</dt><dd>@Number(list.DoublePrecision(8) * 1.079, "0.0")</dd><dd class="telemetry-unit">ft</dd>
+                                <dt>Altitude residual</dt><dd>@Number(list.DoublePrecision(22) / (16 * MetresPerFoot), "+0.0;-0.0;0.0")</dd><dd class="telemetry-unit">ft</dd>
+                            </dl>
+                        }
+                        <h4>State vector</h4>
+                        <table class="telemetry-vector" aria-label="Onboard state vector">
+                            <thead>
+                                <tr><th scope="col">Axis</th><th scope="col">Pos / nmi</th><th scope="col">Vel / ft/s</th></tr>
+                            </thead>
+                            <tbody>
+                                @for (var axis = 0; axis < 3; axis++)
+                                {
+                                    <tr>
+                                        <th scope="row">@("XYZ"[axis])</th>
+                                        <td>@Number(list.DoublePrecision(vectorStart + axis) * 2 / MetresPerNauticalMile, "+0.000;-0.000;0.000")</td>
+                                        <td>@Number(list.DoublePrecision(vectorStart + 3 + axis) * VelocityScale, "+0.0;-0.0;0.0")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        <dl class="telemetry-clock telemetry-vector-epoch">
+                            <dt>Vector epoch</dt>
+                            <dd>@Clock(list.DoublePrecision(vectorStart + 6))</dd>
+                        </dl>
+                        <dl class="telemetry-clock telemetry-failure">
+                            <dt>FAILREG</dt>
+                            <dd>@Octal(FailureWord(list, isCommandModule))</dd>
+                        </dl>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
+    <button class="telemetry-raw-toggle" type="button" aria-controls="telemetry-raw"
+            aria-expanded="@(_showRaw ? "true" : "false")" @onclick="() => _showRaw = !_showRaw">
+        @(_showRaw ? "Hide raw downlink" : "Raw downlink")
+    </button>
+    <div id="telemetry-raw" hidden="@(!_showRaw)">
+        @if (_showRaw)
+        {
+            <dl class="channel-values">
+                <div><dt>Words received</dt><dd>@(Downlink?.WordCount ?? 0)</dd></div>
+                <div><dt>Latest <code>034</code> / <code>035</code></dt><dd><code>@Octal(Downlink?.FirstWord) / @Octal(Downlink?.SecondWord)</code></dd></div>
+            </dl>
+            @if (list is not null)
+            {
+                <div class="telemetry-raw-words" tabindex="0" role="region" aria-label="Last complete downlist">
+                    <table class="channel-monitor">
+                        <caption>Downlist @(Downlink!.ListCount) · @list.PairCount pairs</caption>
+                        <thead><tr><th scope="col">Pair</th><th scope="col"><code>034</code></th><th scope="col"><code>035</code></th></tr></thead>
+                        <tbody>
+                            @for (var pair = 1; pair <= list.PairCount; pair++)
+                            {
+                                <tr><th scope="row">@pair</th><td><code>@Octal(list.First(pair))</code></td><td><code>@Octal(list.Second(pair))</code></td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter] public DskySpacecraft Spacecraft { get; set; }
+    [Parameter] public AgcDownlink? Downlink { get; set; }
+    [Parameter] public bool OnHold { get; set; }
+
+    private const double MetresPerNauticalMile = 1852;
+    private const double MetresPerFoot = 0.3048;
+    // The 28-bit fractions hold position at B29 and velocity at B7 metres per centisecond.
+    private const double VelocityScale = 100.0 / ((1 << 21) * MetresPerFoot);
+    private bool _showRaw;
+
+    private static string DownlistName(int id, bool commandModule) => id switch
+    {
+        AgcDownlink.CoastAndAlign => "Coast and align",
+        AgcDownlink.EntryOrAgsUpdate => commandModule ? "Entry and update" : "AGS initialization and update",
+        AgcDownlink.RendezvousAndPrethrust => "Rendezvous and prethrust",
+        AgcDownlink.PoweredOrOrbitalManeuvers => commandModule ? "Powered flight" : "Orbital maneuvers",
+        AgcDownlink.Program22OrDescentAndAscent => commandModule ? "Program 22" : "Descent and ascent",
+        AgcDownlink.LunarSurfaceAlign => "Lunar surface align",
+        AgcDownlink.CommandModuleDump or AgcDownlink.LunarModuleDump => "Erasable memory dump",
+        _ => "Unknown downlist"
+    };
+
+    private static int FailureWord(AgcDownlink.Downlist list, bool commandModule)
+        => list.Second(!commandModule ? 62 : list.Id == AgcDownlink.EntryOrAgsUpdate ? 97 : 70);
+
+    private static string Number(double value, string format) => value.ToString(format, CultureInfo.InvariantCulture);
+
+    private static string Octal(int? value) => value is { } word ? Convert.ToString(word, 8).PadLeft(5, '0') : "—";
+
+    private static string Clock(int centiseconds)
+    {
+        var sign = centiseconds < 0 ? "−" : "";
+        var time = Math.Abs(centiseconds);
+        return $"{sign}{time / 360000:000}:{time / 6000 % 60:00}:{time / 100 % 60:00}.{time % 100:00}";
+    }
+}

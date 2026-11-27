@@ -334,6 +334,196 @@ kbd {
     color: #bac7be;
 }
 
+.telemetry-console {
+    padding: 0.65rem;
+    border: 1px solid #202827;
+    border-top-color: #959f9b;
+    border-radius: 0.45rem;
+    background: linear-gradient(#697673, #515c59);
+    box-shadow: 0 0.45rem 0.9rem #0005, inset 0 -2px #2e3936;
+}
+
+.telemetry-nameplate {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.25rem 0.75rem;
+    margin: 0 0.4rem 0.55rem;
+    color: #fbf9e8;
+    text-transform: uppercase;
+}
+
+.telemetry-nameplate h2 {
+    margin: 0;
+    font: 700 0.85rem/1.3 system-ui, sans-serif;
+    letter-spacing: 0.13em;
+}
+
+.telemetry-signal {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+}
+
+.telemetry-signal::before {
+    width: 0.55rem;
+    height: 0.55rem;
+    border: 1px solid #30352a;
+    border-radius: 50%;
+    background: #3a4438;
+    content: "";
+}
+
+.telemetry-signal[data-state="Live"]::before {
+    background: #a3c586;
+    box-shadow: 0 0 4px #c8ebaf80;
+}
+
+.telemetry-signal[data-state="Hold"]::before {
+    background: #e2b569;
+}
+
+.telemetry-bezel {
+    padding: clamp(0.35rem, 1.2vw, 0.65rem);
+    border: 1px solid #252b2a;
+    border-radius: 0.65rem;
+    background: linear-gradient(#252b2b, #181d1d);
+    box-shadow: inset 0 2px 5px #000b, 0 1px #a9b3ac;
+}
+
+.telemetry-crt {
+    --crt-label: #b5c6bd;
+    --crt-rule: #536962;
+    min-height: 16rem;
+    padding: 0.85rem clamp(0.55rem, 1.5vw, 0.9rem);
+    border: 1px solid #5b7067;
+    border-radius: 5% / 3.5%;
+    background: radial-gradient(ellipse at 45% 35%, #263934, #121e1d 85%);
+    box-shadow: inset 0 0 14px #090e0d;
+    color: #d9eee4;
+    font: 0.83rem/1.4 "Courier New", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    text-transform: uppercase;
+}
+
+.telemetry-screen-header,
+.telemetry-list-title,
+.telemetry-clock {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.15rem 0.6rem;
+}
+
+.telemetry-screen-header {
+    border-bottom: 1px solid var(--crt-rule);
+    padding-bottom: 0.35rem;
+}
+
+.telemetry-screen-header h3 {
+    margin: 0;
+    font-size: 1.05em;
+    letter-spacing: 0.07em;
+}
+
+.telemetry-screen-header span,
+.telemetry-list-title,
+.telemetry-clock dt {
+    color: var(--crt-label);
+}
+
+.telemetry-list-title {
+    margin-top: 0.55rem;
+}
+
+.telemetry-waiting {
+    margin: 2.2rem 0;
+    color: var(--crt-label);
+}
+
+.telemetry-clock {
+    margin: 0.35rem 0 0;
+}
+
+.telemetry-crt h4 {
+    margin: 0.85rem 0 0.3rem;
+    border-bottom: 1px solid var(--crt-rule);
+    color: var(--crt-label);
+    font: inherit;
+    letter-spacing: 0.09em;
+}
+
+.telemetry-readouts {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content 3ch;
+    column-gap: 0.45rem;
+    margin: 0;
+}
+
+.telemetry-crt dd {
+    margin: 0;
+    text-align: right;
+}
+
+.telemetry-unit,
+.telemetry-vector thead {
+    color: var(--crt-label);
+}
+
+.telemetry-vector {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: right;
+}
+
+.telemetry-vector th {
+    font-weight: normal;
+}
+
+.telemetry-vector th:first-child {
+    text-align: left;
+}
+
+.telemetry-vector :is(th, td) {
+    padding: 0 0 0.1rem;
+}
+
+.telemetry-vector-epoch,
+.telemetry-failure {
+    border-top: 1px solid var(--crt-rule);
+    padding-top: 0.2rem;
+}
+
+.telemetry-raw-toggle {
+    margin-top: 0.75rem;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid #728078;
+    border-radius: 0.3rem;
+    background: #242c28;
+    color: inherit;
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.telemetry-raw-toggle:hover {
+    background: #313b34;
+}
+
+.telemetry-raw-words {
+    max-height: 14rem;
+    overflow: auto;
+    margin-top: 0.5rem;
+}
+
+.telemetry-raw-words caption {
+    color: #bac7be;
+    text-align: left;
+}
+
 @media (max-width: 40rem) {
     main.workspace-open {
         width: min(100% - 1.5rem, 35rem);
@@ -352,7 +542,8 @@ kbd {
 @media (pointer: coarse) {
     .page-controls :is(button, select),
     .systems-header select,
-    .send-vector {
+    .send-vector,
+    .telemetry-raw-toggle {
         min-height: 44px;
     }
 }

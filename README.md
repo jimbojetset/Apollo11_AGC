@@ -61,12 +61,25 @@ about 216 nmi apogee and 108 nmi perigee. The last digit can vary with the
 AGC clock. To send the preset again after a successful transfer, start a
 fresh Comanche session by reloading the page or switching ropes.
 
-The **I/O Monitor** shows the uplink and DSKY channel words. **Telemetry**
-shows the latest raw downlink words on octal channels 34 and 35 and a running
-count of received words. The stream starts at boot, and `00000` is a valid
-word. Switching views or hiding Systems leaves the current transfer running.
-Changing the flight software starts a fresh session. The browser pauses the
-emulator and transfer while its tab is hidden.
+The **I/O Monitor** shows the uplink and DSKY channel words. **Systems →
+Mission Control Telemetry** reconstructs an Apollo digital-to-television
+console with fixed labels and live numeric readouts. The display updates on
+complete AGC downlists, about every two seconds at the emulated rate. It shows
+the AGC clock, the onboard state vector and its epoch, and the failure register.
+Comanche’s Coast and Align list adds the last R30 apogee and perigee above the
+AGC reference radius. Luminary’s Descent and Ascent list adds landing-radar
+slant range and the altitude residual when those fields are in use.
+
+**Raw downlink** shows the latest octal channel words and the complete list
+with pair numbers for reference. The console keeps the last complete list on
+screen with **Hold** if the stream stops. Switching views or hiding Systems
+leaves the current transfer running. Changing flight software starts a fresh
+session. The browser pauses the emulator and transfer while its tab is hidden.
+
+The display style follows NASA’s [Apollo real-time display system report](https://ntrs.nasa.gov/api/citations/19760024152/downloads/19760024152.pdf).
+Field order and units come from the [CMC Data Links manual](https://ntrs.nasa.gov/api/citations/19720025987/downloads/19720025987.pdf#page=115),
+the [Luminary 099 flight listing](https://www.ibiblio.org/apollo/listings/Luminary099/DOWNLINK_LISTS.agc.html),
+and [Virtual AGC’s downlist reference](https://www.ibiblio.org/apollo/yaTelemetry2.html).
 
 ```sh
 dotnet publish Web/Apollo11.Agc.Web.csproj -c Release

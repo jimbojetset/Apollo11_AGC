@@ -24,6 +24,7 @@ internal static class Program
     ("double-word transfers through L and Q", DoubleRegisterTransfers),
     ("extracode I/O", ExtracodeIo),
     ("DOWNRUPT timing", DownruptTiming),
+    ("downlist framing and signed words", DownlistFraming),
     ("Comanche and Luminary downlink startup", FlightRopesDownlink),
     ("priority interrupt and RESUME", InterruptAndResume),
     ("timer scaler", TimerScaler),
@@ -267,20 +268,50 @@ static void FlightRopesDownlink()
     {
         var cpu = new AgcCpu();
         RopeImage.Load(Path.Combine(AppContext.BaseDirectory, "roms", rope), cpu.Memory);
-        var words = new List<(int Channel, int Word)>();
-        cpu.Channels.Output += (channel, word) =>
-        {
-            if (channel is 0x1c or 0x1d)
-                words.Add((channel, word));
-        };
+        var downlink = new AgcDownlink();
+        cpu.Channels.Output += (channel, word) => downlink.Record(channel, word, cpu.CycleCount);
 
         cpu.SignalDownlinkEndPulse();
         cpu.Run(AgcCpu.MachineCyclesPerSecond);
+        True(downlink.WordCount >= 90, $"{rope} did not sustain the downlink after its initial pulse.");
+        True(downlink.Latest is null, "A partial downlist was published.");
+        cpu.Run(2 * AgcCpu.MachineCyclesPerSecond);
+        var list = downlink.Latest ?? throw new InvalidOperationException($"{rope} did not complete a downlist.");
+        Equal(100, list.PairCount);
+        Equal(AgcDownlink.CoastAndAlign, list.Id);
+        Equal(0x7ee0, list.Second(1));
+        True(list.DoublePrecision(51) > 0, $"{rope} did not transmit a running clock.");
+        cpu.Run(2 * AgcCpu.MachineCyclesPerSecond);
+        True(downlink.Latest!.DoublePrecision(51) > list.DoublePrecision(51), "The downlink clock stopped.");
+    }
+}
 
-        True(words.Count >= 90, $"{rope} did not sustain the downlink after its initial pulse.");
-        // Both ropes send these first two words at startup in yaAGC as well.
-        Equal((0x1c, Convert.ToInt32("77777", 8)), words[0]);
-        Equal((0x1d, Convert.ToInt32("77340", 8)), words[1]);
+static void DownlistFraming()
+{
+    var downlink = new AgcDownlink();
+    Pair(AgcDownlink.RendezvousAndPrethrust, 0x7ee0, false);
+    for (var pair = 2; pair < 51; pair++)
+        Pair(100, 200);
+    Pair(AgcDownlink.CoastAndAlign, 0x7ee0, false); // A restart sent a header in the clock slot.
+    Pair(AgcWord.FromInt32(-2), AgcWord.FromInt32(-3));
+    for (var pair = 3; pair <= 100; pair++)
+        Pair(0, 0, pair != 51);
+    var list = downlink.Latest ?? throw new InvalidOperationException("The replacement list did not synchronize.");
+    Equal(1L, downlink.ListCount);
+    Equal(AgcDownlink.CoastAndAlign, list.Id);
+    Equal(-(2 * 16384 + 3), list.DoublePrecision(2));
+
+    Pair(AgcDownlink.CommandModuleDump, 0x7ee0, false);
+    for (var pair = 2; pair <= 130; pair++)
+        Pair(pair, 0);
+    True(downlink.Latest is { IsMemoryDump: true, PairCount: 130 }, "Expected a complete erasable memory dump.");
+    Equal(0, list.First(100)); // Retained snapshots are independent of the receiver's working buffer.
+
+    void Pair(int first, int second, bool orderBit = true)
+    {
+        downlink.Record(0x0b, orderBit ? 0x40 : 0, 0);
+        downlink.Record(0x1c, first, 0);
+        downlink.Record(0x1d, second, 0);
     }
 }
 
@@ -446,6 +477,8 @@ static void ComancheDigitalUplink()
 {
     var cpu = new AgcCpu();
     RopeImage.Load(Path.Combine(AppContext.BaseDirectory, "roms", "Comanche055.bin"), cpu.Memory);
+    var downlink = new AgcDownlink();
+    cpu.Channels.Output += (channel, word) => downlink.Record(channel, word, cpu.CycleCount);
     cpu.SignalDownlinkEndPulse();
     var dsky = new DskyPanel(cpu, DskySpacecraft.CommandModule);
     var uplink = new ComancheOrbitUplink(cpu, dsky);
@@ -493,6 +526,11 @@ static void ComancheDigitalUplink()
     True(int.TryParse(Digits(11, 5), out var perigee) && Math.Abs(perigee - 1080) <= 2,
         $"Unexpected perigee after uplink: {Digits(11, 5)}.");
     Equal(('+', '+', '-', "59 59"), (dsky.Sign(0), dsky.Sign(1), dsky.Sign(2), Digits(16, 5)));
+    cpu.Run(4 * AgcCpu.MachineCyclesPerSecond);
+    var list = downlink.Latest ?? throw new InvalidOperationException("No downlist received following R30.");
+    Equal(AgcDownlink.CoastAndAlign, list.Id);
+    True(Math.Abs(2.0 * list.DoublePrecision(28) / 1852 - apogee / 10.0) < 0.2, "Downlinked apogee differs from the DSKY.");
+    True(Math.Abs(2.0 * list.DoublePrecision(29) / 1852 - perigee / 10.0) < 0.2, "Downlinked perigee differs from the DSKY.");
 
     void Press(params DskyKey[] keys)
     {
